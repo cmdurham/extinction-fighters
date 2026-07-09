@@ -1,0 +1,21 @@
+{
+  "name": "Extinction Fighters",
+  "short_name": "Extinction Fighters",
+  "description": "A fan-made prehistoric survival board game — hatch a dinosaur, draft its powers, and race across the board without going extinct.",
+  "lang": "en",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#15241b",
+  "theme_color": "#1f3a2a",
+  "categories": ["games", "education"],
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

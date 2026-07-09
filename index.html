@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Extinction Fighters — A Dino Survival Board Game</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#15241b" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<style>
+  :root {
+    --bg:#15241b; --bg2:#1f3a2a;
+    --sand:#d8b87a; --sand2:#c2a05f;
+    --bone:#f4ecd6; --bone2:#cbbf9e;
+    --green:#4caf50; --green-d:#2e7d32;
+    --red:#e25b4a; --red-d:#a83a2c;
+    --gold:#ffce54; --ink:#1c2b1c; --paper:#fffdf3;
+    --p0:#ffce54; --p1:#5db0ff; --p2:#7ed957; --p3:#ff7eb6;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { height:100%; font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;
+    background:radial-gradient(circle at 50% -10%,var(--bg2),var(--bg)); color:var(--paper); }
+  #app { max-width:920px; margin:0 auto; padding:12px; min-height:100%; display:flex; flex-direction:column; }
+  .hidden { display:none !important; }
+  h1,h2,h3 { line-height:1.1; }
+  /* dino silhouette icons — inherit currentColor so they tint per player */
+  .dino-svg { display:inline-block; fill:currentColor; vertical-align:middle; flex:0 0 auto; }
+
+  .logo .small { display:block; font-size:clamp(12px,3.5vw,18px); letter-spacing:6px; color:var(--gold); font-weight:700; text-align:center; }
+  .logo .big { display:block; text-align:center; font-size:clamp(34px,10vw,68px); font-weight:900; letter-spacing:1px;
+    background:linear-gradient(180deg,#fff7e0,var(--bone),var(--sand2)); -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:3px 3px 0 #00000030; }
+
+  .screen { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; text-align:center; animation:fade .35s ease; }
+  @keyframes fade { from{opacity:0; transform:translateY(8px);} to{opacity:1;} }
+  .tag { color:#cfe6d2; font-style:italic; max-width:580px; }
+
+  .btn { font-family:inherit; font-weight:800; font-size:17px; padding:13px 24px; border:none; border-radius:40px; cursor:pointer;
+    background:linear-gradient(180deg,var(--green),var(--green-d)); color:#fff; box-shadow:0 5px 0 #1b4d20,0 8px 16px #0006;
+    transition:transform .08s,box-shadow .08s,filter .1s; -webkit-tap-highlight-color:transparent; }
+  .btn:hover:not(:disabled){ filter:brightness(1.07); }
+  .btn:active:not(:disabled){ transform:translateY(4px); box-shadow:0 1px 0 #1b4d20,0 3px 8px #0006; }
+  .btn:disabled{ opacity:.45; cursor:default; }
+  .btn.small { font-size:14px; padding:9px 16px; box-shadow:0 4px 0 #1b4d20,0 6px 12px #0005; }
+  .btn.alt { background:linear-gradient(180deg,#6d8b9c,#455a64); box-shadow:0 5px 0 #2c3a40,0 8px 16px #0006; }
+  .btn.gold { background:linear-gradient(180deg,#ffd766,#e0a92e); color:var(--ink); box-shadow:0 4px 0 #9c7414,0 6px 12px #0005; }
+  .btn-row { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+
+  /* setup */
+  .seats { display:flex; flex-direction:column; gap:8px; width:100%; max-width:420px; }
+  .seat { display:flex; align-items:center; gap:10px; background:#ffffff12; border:1px solid #ffffff20; border-radius:12px; padding:8px 12px; }
+  .seat .dot { width:16px; height:16px; border-radius:50%; flex:0 0 auto; }
+  .seat input { flex:1; background:#0003; border:1px solid #ffffff25; color:var(--paper); border-radius:8px; padding:7px 10px; font-family:inherit; font-size:14px; }
+  .toggle { display:flex; border-radius:8px; overflow:hidden; border:1px solid #ffffff25; }
+  .toggle button { background:#0003; color:#cdd; border:none; padding:7px 11px; font-family:inherit; font-weight:700; font-size:13px; cursor:pointer; }
+  .toggle button.on { background:var(--gold); color:var(--ink); }
+  .count-row { display:flex; gap:8px; align-items:center; justify-content:center; }
+  .count-row .toggle button.on { background:var(--green); color:#fff; }
+  .note { font-size:11px; opacity:.6; }
+
+  /* hatch */
+  .hatch-grid { display:flex; gap:14px; flex-wrap:wrap; justify-content:center; }
+  .egg-card { width:178px; background:#ffffff12; border:2px solid #ffffff20; border-radius:16px; padding:12px 10px; text-align:center; transition:border-color .2s, transform .2s; }
+  .egg-card.active { border-color:var(--gold); animation:bob 1s ease-in-out infinite; cursor:pointer; }
+  .egg-card.active:hover { transform:scale(1.04); }
+  @keyframes bob { 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-6px);} }
+  .egg-card .nameseat { font-size:12px; opacity:.85; margin-bottom:6px; font-weight:700; }
+  .egg-emoji { font-size:54px; line-height:1.2; }
+  .egg-emoji.crack { animation:shake .5s ease; }
+  @keyframes shake { 0%,100%{transform:rotate(0);} 20%{transform:rotate(-12deg);} 40%{transform:rotate(10deg);} 60%{transform:rotate(-8deg);} 80%{transform:rotate(6deg);} }
+  .dino-name { font-weight:900; font-size:15px; margin-top:4px; }
+  .dino-sub { font-size:11px; opacity:.75; font-style:italic; }
+  .egg-card .fact { font-size:10.5px; color:#ffe7a8; margin-top:7px; line-height:1.4; text-align:left; background:#0003; border-radius:8px; padding:6px 8px; }
+  .mini-abils { display:flex; flex-direction:column; gap:3px; margin-top:8px; font-size:10.5px; text-align:left; }
+  .mini-abils div { background:#0003; border-radius:6px; padding:3px 6px; }
+  .hp-pill { display:inline-block; font-size:11px; margin-top:5px; opacity:.9; }
+
+  /* power picker */
+  #powerPicker { width:100%; max-width:560px; background:#ffffff10; border:1px solid #ffffff22; border-radius:16px; padding:16px; animation:fade .3s ease; }
+  #powerPicker h3 { margin-bottom:4px; }
+  #powerPicker .pp-fact { font-size:12px; color:#ffe7a8; margin-bottom:8px; line-height:1.4; }
+  #powerPicker .pp-sub { font-size:12px; opacity:.75; margin-bottom:12px; }
+  .power-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+  @media (max-width:480px){ .power-grid { grid-template-columns:1fr; } }
+  .power-opt { text-align:left; background:#0003; border:2px solid #ffffff20; border-radius:10px; padding:9px 11px; cursor:pointer; color:var(--paper); font-family:inherit; transition:border-color .15s, background .15s, transform .06s; }
+  .power-opt:hover { border-color:var(--gold); }
+  .power-opt:active { transform:scale(.98); }
+  .power-opt.on { border-color:var(--gold); background:linear-gradient(180deg,#ffce5430,#0003); }
+  .power-opt .po-h { font-weight:900; font-size:13.5px; }
+  .power-opt .po-d { font-size:11px; opacity:.82; margin-top:2px; }
+  .power-opt.locked { opacity:.45; cursor:default; }
+  .power-opt.locked:hover { border-color:#ffffff20; }
+  .po-badge { display:inline-block; background:var(--gold); color:var(--ink); font-weight:900; font-size:11px; min-width:16px; height:16px; line-height:16px; text-align:center; border-radius:50%; margin-right:3px; }
+  .po-rm { font-size:10px; margin-top:3px; color:#ffd27a; opacity:.95; }
+  .pp-actions { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+
+  /* game */
+  #game { gap:10px; }
+  .turnbar { position:relative; display:flex; align-items:center; justify-content:center; gap:10px; font-weight:800; font-size:15px;
+    background:#00000033; border:1px solid #ffffff1a; border-radius:12px; padding:8px 46px 8px 12px; text-align:center; flex-wrap:wrap; }
+  .turnbar .who { padding:2px 10px; border-radius:20px; color:#111; font-weight:900; }
+  .help-btn { position:absolute; right:8px; top:50%; transform:translateY(-50%); background:#0004; border:1px solid #ffffff25; color:var(--paper);
+    font-family:inherit; font-weight:800; font-size:12px; padding:5px 9px; border-radius:20px; cursor:pointer; }
+  .help-btn:hover { background:#0006; }
+
+  .track { display:flex; gap:9px; overflow-x:auto; padding:15px 6px 21px; scroll-behavior:smooth; }
+  .tile { flex:0 0 auto; width:96px; height:126px; border-radius:16px; position:relative; overflow:hidden;
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    background:linear-gradient(180deg,var(--sand),var(--sand2)); border:1px solid #00000030; box-shadow:inset 0 -4px 12px #00000022; }
+  .tile .hab-motif { position:absolute; top:50%; left:50%; transform:translate(-50%,-46%); font-size:51px; line-height:1; opacity:.32; pointer-events:none; z-index:0; filter:saturate(.85); }
+  .tile .ttype { position:relative; z-index:1; margin-top:10px; width:39px; height:39px; line-height:39px; text-align:center; font-size:22px; border-radius:50%; background:#00000055; box-shadow:0 1px 4px #0005; }
+  .tile .tnum { position:absolute; top:3px; left:6px; z-index:1; font-size:13px; color:#ffffffcc; font-weight:800; text-shadow:0 1px 1px #0007; }
+  .t-start .ttype, .t-finish .ttype { background:#caa23cdd; }
+  .t-adversity .ttype { background:#d2553fdd; }
+  .t-fight .ttype { background:#d77f2edd; }
+  .t-bonus .ttype { background:#3a86b0dd; }
+  .tile.cur { outline:4px solid var(--gold); outline-offset:1px; }
+  .tile .tokens { position:absolute; bottom:5px; left:0; right:0; z-index:2; display:flex; flex-wrap:wrap; gap:3px; justify-content:center; }
+  .tok { font-size:24px; line-height:1; border-radius:50%; padding:2px; background:#00000066; display:inline-flex; }
+  .tok.dead { filter:grayscale(1) opacity(.6); }
+
+  .players { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  .pcard { flex:1 1 150px; max-width:210px; background:#ffffff10; border:2px solid #ffffff18; border-radius:12px; padding:8px 10px; position:relative; transition:border-color .2s, box-shadow .2s; }
+  .pcard.active { border-color:var(--gold); box-shadow:0 0 0 2px #ffce5455, 0 4px 14px #0005; }
+  .pcard.extinct { opacity:.5; }
+  .pcard.finished { border-color:#7ed957; }
+  .pcard .ph { display:flex; align-items:center; gap:7px; }
+  .pcard .pe { font-size:26px; }
+  .pcard .pn { font-weight:900; font-size:13px; line-height:1.1; }
+  .pcard .psub { font-size:10px; opacity:.7; font-style:italic; }
+  .hearts { margin-top:4px; font-size:14px; letter-spacing:1px; }
+  .charges { display:flex; flex-direction:column; gap:2px; margin-top:5px; }
+  .charges .ab { display:flex; align-items:center; gap:5px; font-size:10.5px; background:#0002; border-radius:5px; padding:2px 5px; }
+  .charges .ab .dots { margin-left:auto; letter-spacing:1px; }
+  .extinct-tag { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:30px; }
+
+  .stage { background:#00000038; border:1px solid #ffffff1a; border-radius:14px; padding:12px; min-height:150px;
+    display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .event-card { width:100%; max-width:500px; text-align:center; animation:fade .3s ease; }
+  .ev-icon { font-size:38px; line-height:1; }
+  .ev-name { font-weight:900; font-size:18px; }
+  .ev-desc { font-size:13px; color:#dfead8; margin-top:2px; }
+  .ev-target { font-size:13px; margin-top:4px; color:var(--gold); font-weight:800; }
+  .vs { display:flex; align-items:center; justify-content:center; gap:14px; margin:6px 0; }
+  .vs .side { text-align:center; }
+  .vs .side .e { font-size:34px; }
+  .vs .side .n { font-size:12px; font-weight:800; }
+  .vs .side .r { font-size:22px; font-weight:900; color:var(--gold); min-height:1.2em; }
+  .vs .mid { font-size:18px; font-weight:900; opacity:.8; }
+
+  .dice { font-size:42px; line-height:1; min-height:48px; }
+  .prompt-title { font-size:15px; font-weight:700; min-height:1.3em; text-align:center; }
+  .prompt-btns { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+
+  .log { width:100%; max-height:96px; overflow-y:auto; background:#0003; border-radius:10px; padding:7px 10px; font-size:12.5px; line-height:1.5; }
+  .log .hl { color:var(--gold); font-weight:700; }
+  .log .good { color:#9be29b; } .log .bad { color:#ff9b8c; }
+
+  .medal { font-size:72px; animation:pop .5s ease; }
+  @keyframes pop { from{transform:scale(0);} to{transform:scale(1);} }
+  .standings { font-size:13px; opacity:.9; }
+  footer { text-align:center; font-size:11px; opacity:.5; padding:12px 0 4px; }
+
+  /* modal */
+  .modal-overlay { position:fixed; inset:0; background:#000b; display:flex; align-items:center; justify-content:center; padding:16px; z-index:100; animation:fade .2s ease; }
+  .modal-box { background:#1f3a2a; border:1px solid #ffffff25; border-radius:16px; max-width:580px; width:100%; max-height:86vh; overflow-y:auto; padding:22px; position:relative; box-shadow:0 14px 44px #000a; text-align:left; }
+  .modal-close { position:absolute; top:10px; right:12px; background:#0005; border:none; color:var(--paper); font-size:17px; width:32px; height:32px; border-radius:50%; cursor:pointer; }
+  .modal-box h2 { color:var(--gold); margin-bottom:8px; }
+  .modal-box h3 { color:var(--gold); margin:14px 0 4px; font-size:15px; }
+  .modal-box p { font-size:13.5px; line-height:1.55; color:#e8f0e6; }
+  .modal-box ul { margin:4px 0 0 18px; }
+  .modal-box li { font-size:13.5px; line-height:1.55; color:#e8f0e6; margin-bottom:3px; }
+
+  /* ================================================================
+     DESIGN REFRESH OVERRIDES (2026-07) — appended, never edit above.
+     Later rules override earlier ones; tune values here only.
+     ================================================================ */
+
+  /* ---- tokens ---- */
+  :root{
+    --bg-deep:#0c1811;
+    --canopy:#2c5a3d;
+    --radius-s:10px; --radius-m:16px; --radius-l:22px;
+    --elev-1:0 2px 10px rgba(0,0,0,.35);
+    --elev-2:0 8px 22px rgba(0,0,0,.45);
+    --elev-3:0 16px 40px rgba(0,0,0,.55);
+    --sheen:inset 0 1px 0 rgba(255,255,255,.32);
+    --glass:rgba(255,255,255,.07);
+    --glass-brd:rgba(255,255,255,.16);
+    --glow-gold:0 0 20px rgba(255,206,84,.45);
+    --font-round:ui-rounded,"Arial Rounded MT Bold","Trebuchet MS","Segoe UI",sans-serif;
+    --spring:cubic-bezier(.34,1.56,.64,1);
+  }
+
+  /* ---- layered jungle backdrop ---- */
+  html,body{
+    background:
+      radial-gradient(ellipse 130% 55% at 50% -12%, var(--canopy) 0%, transparent 60%),
+      radial-gradient(ellipse 90% 60% at 12% 108%, #10251a 0%, transparent 55%),
+      radial-gradient(ellipse 90% 60% at 88% 108%, #10251a 0%, transparent 55%),
+      linear-gradient(180deg, var(--bg2) 0%, var(--bg) 42%, var(--bg-deep) 100%);
+    background-attachment:fixed;
+  }
+
+  /* ---- rounded display type ---- */
+  h1,h2,h3,.logo,.btn,.dino-name,.pn,.ev-name,.turnbar{ font-family:var(--font-round); }
+  .note{ opacity:.75; }
+  .tag{ color:#d9ecdc; }
+
+  /* ---- logo shimmer + aura ---- */
+  .logo .big{
+    background:linear-gradient(105deg,#fff7e0 0%,var(--bone) 35%,var(--gold) 50%,var(--bone) 65%,var(--sand2) 100%);
+    background-size:220% 100%;
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:none;
+    filter:drop-shadow(0 4px 0 rgba(0,0,0,.28)) drop-shadow(0 0 26px rgba(255,206,84,.22));
+    animation:logoShimmer 7s linear infinite;
+  }
+  @keyframes logoShimmer{ from{ background-position:0% 0; } to{ background-position:-220% 0; } }
+
+  /* ---- buttons: gloss, lift, press (order matters) ---- */
+  .btn{
+    border-radius:999px;
+    background:linear-gradient(180deg,#63cf69 0%,#3fa746 55%,var(--green-d) 100%);
+    box-shadow:var(--sheen),0 5px 0 #1b4d20,var(--elev-1);
+    transition:transform .15s var(--spring),box-shadow .15s ease,filter .15s ease;
+  }
+  .btn.small{ box-shadow:var(--sheen),0 4px 0 #1b4d20,var(--elev-1); }
+  .btn.alt{ background:linear-gradient(180deg,#7d9bab 0%,#5a7280 55%,#42545e 100%); box-shadow:var(--sheen),0 5px 0 #2c3a40,var(--elev-1); }
+  .btn.gold{ background:linear-gradient(180deg,#ffe694 0%,#ffce54 45%,#dea22a 100%); box-shadow:var(--sheen),0 5px 0 #9c7414,var(--elev-1); }
+  .btn:hover:not(:disabled){ filter:brightness(1.07) saturate(1.05); transform:translateY(-1px); box-shadow:var(--sheen),0 6px 0 #1b4d20,var(--elev-2); }
+  .btn.alt:hover:not(:disabled){ box-shadow:var(--sheen),0 6px 0 #2c3a40,var(--elev-2); }
+  .btn.gold:hover:not(:disabled){ box-shadow:var(--sheen),0 6px 0 #9c7414,var(--elev-2); }
+  .btn:active:not(:disabled),.btn.small:active:not(:disabled){ transform:translateY(4px); box-shadow:var(--sheen),0 1px 0 #1b4d20,0 2px 6px rgba(0,0,0,.4); }
+  .btn.alt:active:not(:disabled){ box-shadow:var(--sheen),0 1px 0 #2c3a40,0 2px 6px rgba(0,0,0,.4); }
+  .btn.gold:active:not(:disabled){ box-shadow:var(--sheen),0 1px 0 #9c7414,0 2px 6px rgba(0,0,0,.4); }
+
+  /* ---- glass panels ---- */
+  .seat{
+    background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.05));
+    border:1px solid var(--glass-brd); border-top-color:rgba(255,255,255,.26);
+    box-shadow:var(--elev-1);
+  }
+  .turnbar{
+    background:linear-gradient(180deg,rgba(255,255,255,.09),rgba(255,255,255,.04));
+    border:1px solid var(--glass-brd); border-top-color:rgba(255,255,255,.28);
+    border-radius:var(--radius-m); box-shadow:var(--elev-1);
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  }
+  .turnbar .who{ box-shadow:var(--sheen),0 2px 5px rgba(0,0,0,.35); }
+  .help-btn{ transition:background .15s,transform .15s var(--spring); }
+  .help-btn:hover{ background:#0007; transform:scale(1.06); }
+
+  /* ---- board: raised stepping-stone tiles ---- */
+  .track{ padding:18px 8px 24px; }
+  .tile{
+    border:none; border-radius:var(--radius-m);
+    box-shadow: inset 0 2px 0 rgba(255,255,255,.30), inset 0 -7px 0 rgba(0,0,0,.26), 0 7px 16px rgba(0,0,0,.42);
+  }
+  .tile .tnum{ color:#fff; opacity:.85; }
+  .tile .hab-motif{ opacity:.38; filter:saturate(.9) drop-shadow(0 2px 3px rgba(0,0,0,.3)); }
+  .tile .ttype{
+    background:linear-gradient(180deg,rgba(0,0,0,.32),rgba(0,0,0,.5));
+    box-shadow:var(--sheen),0 3px 6px rgba(0,0,0,.45);
+  }
+  .t-adversity .ttype{ background:linear-gradient(180deg,#ec7a5f,#b23c2a); }
+  .t-fight .ttype{ background:linear-gradient(180deg,#eda04c,#bf6a1d); }
+  .t-bonus .ttype{ background:linear-gradient(180deg,#5aa8cf,#2f7396); }
+  .t-start .ttype,.t-finish .ttype{ background:linear-gradient(180deg,#ffd766,#c99a2e); }
+  .tile.cur{ outline:none; animation:tileGlow 1.6s ease-in-out infinite; }
+  @keyframes tileGlow{
+    0%,100%{ box-shadow: inset 0 2px 0 rgba(255,255,255,.30), inset 0 -7px 0 rgba(0,0,0,.26), 0 7px 16px rgba(0,0,0,.42), 0 0 0 3px var(--gold), 0 0 14px rgba(255,206,84,.35); }
+    50%{ box-shadow: inset 0 2px 0 rgba(255,255,255,.30), inset 0 -7px 0 rgba(0,0,0,.26), 0 7px 16px rgba(0,0,0,.42), 0 0 0 4px var(--gold), 0 0 26px rgba(255,206,84,.65); }
+  }
+  .tok{ background:rgba(0,0,0,.55); }
+
+  /* ---- player cards ---- */
+  .pcard{
+    background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.04));
+    border-radius:var(--radius-m); box-shadow:var(--elev-1);
+    transition:transform .25s var(--spring),box-shadow .25s ease,border-color .2s;
+  }
+  .pcard.active{ transform:translateY(-3px) scale(1.02); box-shadow:var(--elev-2),var(--glow-gold); }
+  .pcard .hearts{ font-size:16px; filter:drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
+  .charges .ab{ background:rgba(0,0,0,.28); box-shadow:inset 0 1px 2px rgba(0,0,0,.3); }
+  .charges .ab .dots{ color:var(--gold); }
+  .pcard.extinct{ filter:grayscale(.9); }
+
+  /* ---- stage & event cards ---- */
+  .stage{
+    background:linear-gradient(180deg,rgba(0,0,0,.28),rgba(0,0,0,.42));
+    border:1px solid rgba(255,255,255,.10); border-radius:var(--radius-l);
+    box-shadow:inset 0 2px 14px rgba(0,0,0,.45),var(--elev-1);
+  }
+  .event-card{ animation:cardIn .45s var(--spring); }
+  @keyframes cardIn{
+    0%{ opacity:0; transform:translateY(16px) scale(.92) rotate(-1.5deg); }
+    100%{ opacity:1; transform:translateY(0) scale(1) rotate(0); }
+  }
+  .ev-icon{ filter:drop-shadow(0 4px 8px rgba(0,0,0,.4)); }
+  .vs .side .e{ filter:drop-shadow(0 3px 6px rgba(0,0,0,.45)); }
+  .vs .mid{ color:var(--gold); text-shadow:0 2px 4px rgba(0,0,0,.5); }
+
+  /* ---- dice ---- */
+  .dice{ text-shadow:0 4px 8px rgba(0,0,0,.45); transition:transform .2s var(--spring); }
+  .dice.rolling{ animation:diceWobble .45s ease-in-out infinite; }
+  @keyframes diceWobble{ 0%,100%{ transform:rotate(-7deg) scale(1.04); } 50%{ transform:rotate(7deg) scale(1.12); } }
+
+  /* ---- log & scrollbars ---- */
+  .log{ background:rgba(0,0,0,.32); border:1px solid rgba(255,255,255,.08); box-shadow:inset 0 2px 8px rgba(0,0,0,.35); }
+  .log div{ animation:logIn .25s ease-out; }
+  @keyframes logIn{ from{ opacity:0; transform:translateX(-6px); } to{ opacity:1; transform:none; } }
+  .log::-webkit-scrollbar,.track::-webkit-scrollbar{ height:10px; width:10px; }
+  .log::-webkit-scrollbar-thumb,.track::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.16); border-radius:8px; }
+  .log::-webkit-scrollbar-thumb:hover,.track::-webkit-scrollbar-thumb:hover{ background:rgba(255,255,255,.28); }
+  .log::-webkit-scrollbar-track,.track::-webkit-scrollbar-track{ background:transparent; }
+
+  /* ---- modal ---- */
+  .modal-overlay{ backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); background:rgba(0,0,0,.62); }
+  .modal-box{
+    background:linear-gradient(180deg,#28493a 0%,#1c3527 100%);
+    border:1px solid var(--glass-brd); border-top-color:rgba(255,255,255,.25);
+    border-radius:var(--radius-l); box-shadow:var(--elev-3);
+    animation:modalIn .35s var(--spring);
+  }
+  @keyframes modalIn{ from{ opacity:0; transform:translateY(18px) scale(.95); } to{ opacity:1; transform:none; } }
+  .modal-box h2{ padding-bottom:6px; border-bottom:2px solid rgba(255,206,84,.35); }
+  .modal-close{ transition:transform .15s var(--spring),background .15s; }
+  .modal-close:hover{ transform:scale(1.12); background:#0008; }
+
+  /* ---- hatch & draft ---- */
+  .egg-card{
+    background:linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,.05));
+    box-shadow:var(--elev-1);
+    transition:border-color .2s,transform .25s var(--spring),box-shadow .25s;
+  }
+  .egg-card.active{ box-shadow:var(--elev-2),var(--glow-gold); }
+  .egg-emoji{ background:radial-gradient(ellipse 60% 70% at 50% 55%,rgba(255,206,84,.22),transparent 70%); border-radius:50%; }
+  #powerPicker{
+    background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.04));
+    border-top-color:rgba(255,255,255,.25); box-shadow:var(--elev-2);
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  }
+  .power-opt{
+    background:linear-gradient(180deg,rgba(0,0,0,.25),rgba(0,0,0,.38));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+    transition:border-color .15s,transform .15s var(--spring),box-shadow .2s;
+  }
+  .power-opt:hover{ transform:translateY(-2px); box-shadow:var(--elev-1); }
+  .power-opt.locked:hover{ transform:none; box-shadow:inset 0 1px 0 rgba(255,255,255,.08); }
+  .power-opt.on{
+    border-color:var(--gold);
+    background:linear-gradient(180deg,rgba(255,206,84,.22),rgba(0,0,0,.30));
+    box-shadow:0 0 12px rgba(255,206,84,.25);
+  }
+  .po-badge{ animation:pop .3s var(--spring); }
+
+  /* ---- victory rays ---- */
+  .medal{ position:relative; z-index:0; }
+  .medal::before{
+    content:""; position:absolute; inset:-46px; z-index:-1; border-radius:50%;
+    background:
+      radial-gradient(circle,rgba(255,206,84,.30) 0%,transparent 62%),
+      repeating-conic-gradient(rgba(255,206,84,.14) 0deg 12deg,transparent 12deg 24deg);
+    -webkit-mask-image:radial-gradient(circle,#000 30%,transparent 70%);
+    mask-image:radial-gradient(circle,#000 30%,transparent 70%);
+    animation:raySpin 16s linear infinite;
+  }
+  @keyframes raySpin{ to{ transform:rotate(360deg); } }
+
+  /* ---- accessibility & motion safety ---- */
+  button:focus-visible,input:focus-visible{ outline:3px solid var(--gold); outline-offset:2px; }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{
+      animation-duration:.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:.01ms !important;
+      scroll-behavior:auto !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================================================================
+     DINO SILHOUETTE SPRITE SHEET (scaffold)
+     One <symbol> per archetype, referenced via <use href="#spr-…">.
+     Shapes have NO fill so they inherit `currentColor` (see .dino-svg),
+     letting each token be tinted to its player colour.
+
+     TO UPGRADE TO ACCURATE ART:
+       1. Grab a silhouette per species (e.g. CC0/CC-BY from phylopic.org).
+       2. Drop it in here as a new <symbol id="spr-trex" viewBox="…">…</symbol>
+          (keep paths fill-less so tinting still works).
+       3. In the SPECIES data, add `sprite:"spr-trex"` to that entry.
+          Anything without a `sprite` falls back to its archetype shape.
+     =================================================================== -->
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true" focusable="false">
+  <symbol id="spr-apex" viewBox="0 0 64 64">
+    <path d="M4,46 C12,42 16,40 20,38 C22,34 22,28 24,24 C25,20 28,16 33,15 C38,13 44,14 47,17 C49,19 49,21 47,22 C44,22 42,22 40,23 C42,25 42,27 40,28 C37,29 35,30 34,33 C33,38 31,42 28,44 C20,46 12,47 4,46 Z"/>
+    <rect x="27" y="42" width="5" height="14" rx="1"/><rect x="21" y="43" width="4" height="12" rx="1"/>
+  </symbol>
+  <symbol id="spr-raptor" viewBox="0 0 64 64">
+    <path d="M4,34 C12,33 18,32 24,31 C28,30 31,29 34,28 C38,27 42,27 45,29 C47,30 47,32 45,33 C42,33 40,33 38,34 C36,35 34,36 33,38 C32,40 31,41 30,43 C28,40 26,38 24,37 C16,37 9,36 4,34 Z"/>
+    <rect x="28" y="40" width="3" height="13" rx="1"/><rect x="23" y="38" width="3" height="15" rx="1"/>
+  </symbol>
+  <symbol id="spr-horned" viewBox="0 0 64 64">
+    <ellipse cx="27" cy="40" rx="17" ry="9"/><ellipse cx="46" cy="40" rx="7" ry="6"/>
+    <path d="M40,40 Q40,27 51,29 Q53,36 49,42 Z"/><path d="M52,38 L61,33 L53,42 Z"/><path d="M52,43 L58,45 L52,46 Z"/>
+    <path d="M11,40 Q3,40 1,45 L9,44 Z"/><rect x="18" y="46" width="4" height="10" rx="1"/><rect x="31" y="46" width="4" height="10" rx="1"/>
+  </symbol>
+  <symbol id="spr-armored" viewBox="0 0 64 64">
+    <path d="M8,47 Q10,30 30,28 Q50,30 52,47 Z"/><ellipse cx="54" cy="45" rx="6" ry="5"/>
+    <path d="M11,46 Q3,47 2,42 L9,44 Z"/><circle cx="3" cy="41" r="4"/>
+    <path d="M17,31 l3,-5 l3,5 Z"/><path d="M27,28 l3,-5 l3,5 Z"/><path d="M37,30 l3,-5 l3,5 Z"/>
+    <rect x="16" y="47" width="4" height="8" rx="1"/><rect x="34" y="47" width="4" height="8" rx="1"/>
+  </symbol>
+  <symbol id="spr-giant" viewBox="0 0 64 64">
+    <path d="M3,41 C10,36 18,34 26,33 C30,30 33,28 36,24 C39,16 41,12 44,9 C47,7 51,7 52,10 C53,12 52,14 49,15 C46,16 44,18 43,22 C41,27 40,31 38,36 C36,42 30,44 24,43 C16,43 9,43 3,41 Z"/>
+    <rect x="21" y="42" width="4" height="13" rx="1"/><rect x="34" y="42" width="4" height="13" rx="1"/>
+  </symbol>
+  <symbol id="spr-grazer" viewBox="0 0 64 64">
+    <path d="M5,42 C12,40 17,39 22,37 C26,35 28,32 30,28 C31,24 33,20 37,19 C40,18 43,19 44,22 C46,24 47,26 45,28 C42,29 40,29 38,31 C37,34 35,37 34,40 C32,43 30,44 28,45 C20,45 12,44 5,42 Z"/>
+    <path d="M37,19 Q32,13 39,12 Q42,16 40,21 Z"/>
+    <rect x="29" y="43" width="4" height="12" rx="1"/><rect x="23" y="42" width="3" height="13" rx="1"/>
+  </symbol>
+  <symbol id="spr-flyer" viewBox="0 0 64 64">
+    <ellipse cx="30" cy="34" rx="6" ry="4"/><path d="M34,33 L49,27 L40,36 Z"/><path d="M33,31 L29,23 L37,30 Z"/>
+    <path d="M30,33 Q13,19 3,30 Q16,35 28,36 Z"/><path d="M32,34 Q45,23 58,33 Q46,38 34,36 Z"/>
+  </symbol>
+  <symbol id="spr-marine" viewBox="0 0 64 64">
+    <ellipse cx="27" cy="38" rx="16" ry="8"/><path d="M39,41 Q50,33 48,16 Q53,16 53,21 Q53,34 44,42 Z"/><ellipse cx="51" cy="15" rx="4" ry="3"/>
+    <path d="M12,38 Q3,38 1,43 L10,40 Z"/><path d="M22,42 Q15,51 24,50 Q28,46 26,43 Z"/><path d="M32,43 Q27,53 36,51 Q39,47 36,44 Z"/>
+  </symbol>
+</svg>
+
+<div id="app">
+
+  <!-- SETUP -->
+  <section id="setup" class="screen">
+    <div class="logo"><span class="small">PREHISTORIC SURVIVAL</span><span class="big">EXTINCTION FIGHTERS</span></div>
+    <p class="tag">Hatch one of <b>50 prehistoric species</b> — dinosaurs, pterosaurs and marine reptiles — draft its powers, and race across a 32-space board. Survive asteroids, floods, wild dinos and rival players. The dino that reaches the nesting ground with the most hearts wins. Inspired by Dino Dana.</p>
+
+    <div class="count-row">
+      <span>Players:</span>
+      <div class="toggle" id="countToggle">
+        <button data-n="2">2</button><button data-n="3" class="on">3</button><button data-n="4">4</button>
+      </div>
+    </div>
+    <div class="seats" id="seats"></div>
+    <div class="btn-row">
+      <button class="btn" id="toHatch">Choose Your Eggs 🥚</button>
+      <button class="btn alt small" id="howToBtn">📖 How to Play</button>
+    </div>
+    <p class="note">Hot-seat friendly — set any seat to Human or CPU.</p>
+  </section>
+
+  <!-- HATCH -->
+  <section id="hatch" class="screen hidden">
+    <div class="logo"><span class="small">HATCH &amp; DRAFT</span><span class="big" style="font-size:clamp(26px,7vw,46px)">MYSTERY&nbsp;EGGS</span></div>
+    <p class="tag" id="hatchMsg">Tap your egg to see which prehistoric beast hatches!</p>
+    <div class="hatch-grid" id="hatchGrid"></div>
+    <div id="powerPicker" class="hidden"></div>
+    <button class="btn gold hidden" id="startGame">Begin the Game! 🦴</button>
+    <p class="note">Emoji are friendly stand-ins for each group (🦏 horned, 🐢 armored, 🦔 plated, 🐬 long-necked sea reptiles…).</p>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="hidden">
+    <div class="turnbar"><span id="turnText">…</span><button class="help-btn" id="helpBtn">❓ Rules</button></div>
+    <div class="track" id="track"></div>
+    <div class="players" id="players"></div>
+    <div class="stage">
+      <div class="event-card" id="eventCard"></div>
+      <div class="dice" id="dice"></div>
+      <div class="prompt-title" id="promptTitle"></div>
+      <div class="prompt-btns" id="promptBtns"></div>
+      <div class="log" id="log"></div>
+    </div>
+  </section>
+
+  <!-- END -->
+  <section id="end" class="screen hidden">
+    <div class="medal" id="endMedal">🏆</div>
+    <h2 id="endTitle">Survivor!</h2>
+    <p class="tag" id="endMsg"></p>
+    <div class="standings" id="endStandings"></div>
+    <div class="btn-row">
+      <button class="btn" id="rematch">Rematch 🦕</button>
+      <button class="btn alt small" id="newSetup">New Setup</button>
+    </div>
+  </section>
+
+  <!-- MODAL -->
+  <div id="modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <button class="modal-close" id="modalClose">✕</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <footer>Extinction Fighters · a fan-made board game inspired by Dino Dana</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = (id)=>document.getElementById(id);
+  const rnd = ()=>Math.random();
+  const d6 = ()=>1+Math.floor(rnd()*6);
+  const delay = (ms)=>new Promise(r=>setTimeout(r,ms));
+  const DICE = ["⚀","⚁","⚂","⚃","⚄","⚅"];
+
+  // ---------------- ABILITY ARCHETYPES (each kit = 4 powers; draft 3) ----------------
+  // phases: move | fight | adversity | heal   effect.t: extraMove|atk|def|intimidate|survival|dodge|heal
+  const ARCH = {
+    apex:   { hp:3, abilities:[
+      { name:"Bone-Crushing Bite", icon:"⚔️", phase:"fight",     effect:{t:"atk",v:3} },
+      { name:"Terrifying Roar",    icon:"😱", phase:"fight",     effect:{t:"intimidate",v:3} },
+      { name:"Thick Hide",         icon:"🛡️", phase:"adversity", effect:{t:"survival",v:2} },
+      { name:"Bloody Feast",       icon:"❤️", phase:"heal",      effect:{t:"heal",v:1} },
+    ]},
+    raptor: { hp:3, abilities:[
+      { name:"Speed Burst",        icon:"💨", phase:"move",      effect:{t:"extraMove",v:3} },
+      { name:"Slashing Claws",     icon:"⚔️", phase:"fight",     effect:{t:"atk",v:3} },
+      { name:"Quick Reflexes",     icon:"⚡", phase:"adversity", effect:{t:"survival",v:2} },
+      { name:"Nimble Dodge",       icon:"👀", phase:"adversity", effect:{t:"dodge",v:1}, ch:2 },
+    ]},
+    horned: { hp:4, abilities:[
+      { name:"Horn Charge",        icon:"⚔️", phase:"fight",     effect:{t:"atk",v:3} },
+      { name:"Frill Shield",       icon:"🛡️", phase:"fight",     effect:{t:"def",v:2} },
+      { name:"Herd Bond",          icon:"❤️", phase:"heal",      effect:{t:"heal",v:1}, ch:1 },
+      { name:"Thick Skull",        icon:"🛡️", phase:"adversity", effect:{t:"survival",v:2} },
+    ]},
+    armored:{ hp:4, abilities:[
+      { name:"Tail Weapon",        icon:"⚔️", phase:"fight",     effect:{t:"atk",v:3} },
+      { name:"Armored Plates",     icon:"🛡️", phase:"fight",     effect:{t:"def",v:2}, ch:1 },
+      { name:"Sturdy Build",       icon:"🛡️", phase:"adversity", effect:{t:"survival",v:3}, ch:1 },
+      { name:"Hunker Down",        icon:"👀", phase:"adversity", effect:{t:"dodge",v:1} },
+    ]},
+    giant:  { hp:4, abilities:[
+      { name:"Towering Size",      icon:"🛡️", phase:"adversity", effect:{t:"survival",v:3}, ch:1 },
+      { name:"Mighty Stomp",       icon:"⚔️", phase:"fight",     effect:{t:"atk",v:3} },
+      { name:"Long-Neck Lookout",  icon:"👀", phase:"adversity", effect:{t:"dodge",v:1} },
+      { name:"Graze the Treetops", icon:"❤️", phase:"heal",      effect:{t:"heal",v:1}, ch:1 },
+    ]},
+    grazer: { hp:3, abilities:[
+      { name:"Stampede Run",       icon:"💨", phase:"move",      effect:{t:"extraMove",v:3} },
+      { name:"Head Butt",          icon:"⚔️", phase:"fight",     effect:{t:"atk",v:3} },
+      { name:"Loud Call",          icon:"😱", phase:"fight",     effect:{t:"intimidate",v:3} },
+      { name:"Forage",             icon:"❤️", phase:"heal",      effect:{t:"heal",v:1} },
+    ]},
+    flyer:  { hp:3, abilities:[
+      { name:"Take Flight",        icon:"💨", phase:"move",      effect:{t:"extraMove",v:3} },
+      { name:"Aerial Dive",        icon:"⚔️", phase:"fight",     effect:{t:"atk",v:3} },
+      { name:"Keen Eyes",          icon:"👀", phase:"adversity", effect:{t:"dodge",v:1} },
+      { name:"Fish Snatch",        icon:"❤️", phase:"heal",      effect:{t:"heal",v:1} },
+    ]},
+    marine: { hp:3, abilities:[
+      { name:"Crushing Jaws",      icon:"⚔️", phase:"fight",     effect:{t:"atk",v:3} },
+      { name:"Deep Dive",          icon:"👀", phase:"adversity", effect:{t:"dodge",v:1}, ch:2 },
+      { name:"Slippery Escape",    icon:"⚡", phase:"adversity", effect:{t:"survival",v:2} },
+      { name:"Powerful Tail",      icon:"🛡️", phase:"fight",     effect:{t:"def",v:2} },
+    ]},
+  };
+
+  // ---------------- 50 SPECIES (n=name, e=emoji, s=sub, a=archetype, f=3 facts) ----------------
+  const SPECIES = [
+    // apex predators
+    { n:"Tyrannosaurus rex", e:"🦖", s:"Tyrant king", a:"apex", f:[
+      "Its name means 'tyrant lizard king'.",
+      "Its bite was one of the strongest of any land animal — strong enough to crush bone.",
+      "It had tiny two-fingered arms but a skull over 1.5 metres long." ]},
+    { n:"Giganotosaurus", e:"🦖", s:"Giant southern hunter", a:"apex", f:[
+      "It was even longer than T. rex, but more lightly built.",
+      "Its name means 'giant southern lizard'.",
+      "It hunted in South America about 98 million years ago." ]},
+    { n:"Spinosaurus", e:"🐊", s:"River sailback", a:"apex", f:[
+      "It is the longest known predatory dinosaur, possibly 15 metres.",
+      "It had a tall sail on its back and a crocodile-like snout.",
+      "It likely swam and hunted fish in rivers." ]},
+    { n:"Allosaurus", e:"🦖", s:"Jurassic hunter", a:"apex", f:[
+      "It was the top predator of Jurassic North America.",
+      "Its name means 'different lizard'.",
+      "It had a wide gape and blade-like slashing teeth." ]},
+    { n:"Carcharodontosaurus", e:"🦖", s:"Shark-toothed beast", a:"apex", f:[
+      "Its name means 'shark-toothed lizard'.",
+      "Its serrated teeth could be up to 20 cm long.",
+      "It lived in North Africa alongside Spinosaurus." ]},
+    { n:"Carnotaurus", e:"🦖", s:"Horned bull", a:"apex", f:[
+      "It had two thick horns above its eyes — rare for a predator.",
+      "Its name means 'meat-eating bull'.",
+      "It had some of the tiniest arms of any large meat-eater." ]},
+    { n:"Ceratosaurus", e:"🦖", s:"Horn-nosed predator", a:"apex", f:[
+      "It had a blade-like horn on its nose.",
+      "Bony armor plates ran down its back.",
+      "It shared its world with Allosaurus in the Late Jurassic." ]},
+    // raptors / small fast theropods
+    { n:"Velociraptor", e:"🦖", s:"Feathered pack hunter", a:"raptor", f:[
+      "The real animal was only about the size of a turkey.",
+      "It was covered in feathers.",
+      "It had a large sickle-shaped claw on each foot." ]},
+    { n:"Deinonychus", e:"🦖", s:"Terrible claw", a:"raptor", f:[
+      "Its name means 'terrible claw'.",
+      "Studying it helped scientists link dinosaurs to birds.",
+      "It probably hunted in packs." ]},
+    { n:"Utahraptor", e:"🦖", s:"Giant raptor", a:"raptor", f:[
+      "It was the largest known raptor, up to 7 metres long.",
+      "Its foot claw was around 23 cm long.",
+      "It lived about 135 million years ago in what is now Utah." ]},
+    { n:"Microraptor", e:"🦎", s:"Four-winged glider", a:"raptor", f:[
+      "It had feathered wings on both its arms AND its legs.",
+      "It was only about the size of a crow.",
+      "Fossils suggest it had glossy black feathers." ]},
+    { n:"Troodon", e:"🦖", s:"Big-brained hunter", a:"raptor", f:[
+      "It had one of the largest brains for its body size of any dinosaur.",
+      "Its big eyes suggest it may have hunted at night.",
+      "Its name means 'wounding tooth'." ]},
+    { n:"Compsognathus", e:"🦎", s:"Chicken-sized speedster", a:"raptor", f:[
+      "It was one of the smallest dinosaurs, about the size of a chicken.",
+      "It was a speedy hunter of insects and lizards.",
+      "Its name means 'elegant jaw'." ]},
+    { n:"Dilophosaurus", e:"🦖", s:"Twin-crested hunter", a:"raptor", f:[
+      "It had two thin crests on top of its head.",
+      "It was one of the earliest large meat-eating dinosaurs.",
+      "The movie frill and venom are made up — there is no evidence for them." ]},
+    { n:"Gallimimus", e:"🦖", s:"Ostrich mimic", a:"raptor", f:[
+      "Its name means 'chicken mimic'.",
+      "This ostrich-like dinosaur could run very fast.",
+      "It had a toothless beak and ate plants and small animals." ]},
+    // horned (ceratopsians)
+    { n:"Triceratops", e:"🦏", s:"Three-horned face", a:"horned", f:[
+      "Its name means 'three-horned face'.",
+      "Its huge frill could be over a metre across.",
+      "It lived right up to the end of the age of dinosaurs." ]},
+    { n:"Styracosaurus", e:"🦏", s:"Spiked frill", a:"horned", f:[
+      "It had a long nose horn and a crown of spikes on its frill.",
+      "Its name means 'spiked lizard'.",
+      "It roamed Late Cretaceous North America." ]},
+    { n:"Pachyrhinosaurus", e:"🦏", s:"Thick-nosed grazer", a:"horned", f:[
+      "Instead of a horn it had a thick bony lump on its nose.",
+      "It travelled in large herds in the far north.",
+      "Its name means 'thick-nosed lizard'." ]},
+    { n:"Protoceratops", e:"🦏", s:"Little hornface", a:"horned", f:[
+      "It was a sheep-sized early relative of Triceratops with no big horns.",
+      "A famous fossil shows one fighting a Velociraptor.",
+      "Its frilled skulls may have inspired the griffin legend." ]},
+    // armored (ankylosaurs / stegosaurs)
+    { n:"Ankylosaurus", e:"🐢", s:"Club-tailed tank", a:"armored", f:[
+      "It had a heavy bony club at the end of its tail.",
+      "Its back was covered in armor-like bony plates.",
+      "Even its eyelids had bony protection." ]},
+    { n:"Stegosaurus", e:"🦔", s:"Plated giant", a:"armored", f:[
+      "It had two rows of tall plates along its back.",
+      "Its spiked tail is nicknamed the 'thagomizer'.",
+      "Its brain was only about the size of a walnut." ]},
+    { n:"Kentrosaurus", e:"🦔", s:"Spiked defender", a:"armored", f:[
+      "It had spikes along its back and tail for defense.",
+      "Its name means 'spiked lizard'.",
+      "It lived in what is now Tanzania, Africa." ]},
+    { n:"Euoplocephalus", e:"🐢", s:"Armored head", a:"armored", f:[
+      "It was an armored dinosaur with a bony tail club.",
+      "Even its eyelids were armored.",
+      "Its name means 'well-armored head'." ]},
+    { n:"Sauropelta", e:"🐢", s:"Shield lizard", a:"armored", f:[
+      "It had rows of bony studs and long shoulder spikes.",
+      "Its name means 'shield lizard'.",
+      "It relied on armor and spikes rather than a tail club." ]},
+    // giant (sauropods)
+    { n:"Brachiosaurus", e:"🦕", s:"Tall browser", a:"giant", f:[
+      "Its front legs were longer than its back legs, like a giraffe.",
+      "It held its head high to reach treetop leaves.",
+      "Its name means 'arm lizard'." ]},
+    { n:"Brontosaurus", e:"🦕", s:"Thunder lizard", a:"giant", f:[
+      "Its name means 'thunder lizard'.",
+      "For years scientists argued it was the same as Apatosaurus.",
+      "It had a long neck and an even longer whip-like tail." ]},
+    { n:"Apatosaurus", e:"🦕", s:"Whip-tailed giant", a:"giant", f:[
+      "Its name means 'deceptive lizard'.",
+      "It may have cracked its whip-like tail like a bullwhip.",
+      "It swallowed stones to help grind up plants in its stomach." ]},
+    { n:"Diplodocus", e:"🦕", s:"Longest of the long", a:"giant", f:[
+      "It was one of the longest dinosaurs, around 26 metres.",
+      "Its teeth worked like a rake for stripping leaves.",
+      "Its name means 'double beam'." ]},
+    { n:"Argentinosaurus", e:"🦕", s:"Titan of the south", a:"giant", f:[
+      "It is one of the heaviest land animals ever, maybe 70+ tonnes.",
+      "A single backbone could be taller than a person.",
+      "It lived in what is now Argentina." ]},
+    { n:"Mamenchisaurus", e:"🦕", s:"Longest neck", a:"giant", f:[
+      "It had one of the longest necks of any animal — up to half its length.",
+      "Its neck held as many as 19 bones.",
+      "It lived in what is now China." ]},
+    { n:"Patagotitan", e:"🦕", s:"Colossal titan", a:"giant", f:[
+      "It is among the largest dinosaurs ever discovered.",
+      "It was found in Patagonia, Argentina.",
+      "One skeleton barely fits inside a museum hall." ]},
+    // grazers (ornithopods / hadrosaurs / pachys)
+    { n:"Parasaurolophus", e:"🦖", s:"Trumpet crest", a:"grazer", f:[
+      "Its long hollow head crest could trumpet loud sounds.",
+      "It could walk on two legs or all four.",
+      "Its name means 'near crested lizard'." ]},
+    { n:"Iguanodon", e:"🦎", s:"Thumb-spiked grazer", a:"grazer", f:[
+      "It had a spike on each thumb, once mistaken for a nose horn.",
+      "It was one of the first dinosaurs ever named, in 1825.",
+      "Its name means 'iguana tooth'." ]},
+    { n:"Edmontosaurus", e:"🦖", s:"Duck-billed herder", a:"grazer", f:[
+      "This large duck-billed dinosaur had hundreds of teeth.",
+      "It lived in big herds.",
+      "Some fossils even preserve its skin texture." ]},
+    { n:"Maiasaura", e:"🦖", s:"Good mother", a:"grazer", f:[
+      "Its name means 'good mother lizard'.",
+      "Fossils show it cared for its babies in nests.",
+      "It nested together in huge colonies." ]},
+    { n:"Corythosaurus", e:"🦖", s:"Helmet head", a:"grazer", f:[
+      "Its head crest looked like a rounded helmet.",
+      "The crest may have helped it make calls.",
+      "Its name means 'helmet lizard'." ]},
+    { n:"Pachycephalosaurus", e:"🦖", s:"Dome head", a:"grazer", f:[
+      "It had a thick domed skull up to 25 cm thick.",
+      "It may have head-butted or flank-butted rivals.",
+      "Its name means 'thick-headed lizard'." ]},
+    // pterosaurs (flyers)
+    { n:"Pteranodon", e:"🦅", s:"Crested flyer", a:"flyer", f:[
+      "It was a flying reptile, not actually a dinosaur.",
+      "Its wingspan could reach 6 to 7 metres.",
+      "It had a long head crest and no teeth." ]},
+    { n:"Quetzalcoatlus", e:"🦅", s:"Giant of the sky", a:"flyer", f:[
+      "It was one of the largest flying animals ever, with a ~10 metre wingspan.",
+      "On the ground it stood as tall as a giraffe.",
+      "It is named after an Aztec feathered-serpent god." ]},
+    { n:"Pterodactylus", e:"🦅", s:"Wing finger", a:"flyer", f:[
+      "It was one of the first pterosaurs ever discovered.",
+      "Its name means 'wing finger'.",
+      "It was fairly small, with a wingspan around 1 metre." ]},
+    { n:"Rhamphorhynchus", e:"🦇", s:"Long-tailed flyer", a:"flyer", f:[
+      "It had a long tail with a diamond-shaped vane at the tip.",
+      "It had needle-like teeth for catching fish.",
+      "Its name means 'beak snout'." ]},
+    { n:"Dimorphodon", e:"🦇", s:"Big-headed flyer", a:"flyer", f:[
+      "It had two different types of teeth in its jaws.",
+      "It had a large, puffin-like head.",
+      "Its name means 'two-form tooth'." ]},
+    // marine reptiles
+    { n:"Mosasaurus", e:"🐊", s:"Sea monster", a:"marine", f:[
+      "It was a giant marine reptile, not a dinosaur.",
+      "It had a second set of teeth on the roof of its mouth.",
+      "It was a top ocean predator at the end of the Cretaceous." ]},
+    { n:"Plesiosaurus", e:"🐬", s:"Long-necked swimmer", a:"marine", f:[
+      "It had a long neck and four large flippers.",
+      "It 'flew' through the water like a sea turtle.",
+      "Its name means 'near lizard'." ]},
+    { n:"Elasmosaurus", e:"🐬", s:"Endless neck", a:"marine", f:[
+      "Its neck alone held over 70 bones — one of the longest ever.",
+      "Its neck was longer than the rest of its body.",
+      "It swam the seas of the Late Cretaceous." ]},
+    { n:"Ichthyosaurus", e:"🐬", s:"Fish lizard", a:"marine", f:[
+      "It looked like a dolphin but was a reptile.",
+      "It gave birth to live young in the water.",
+      "Its name means 'fish lizard'." ]},
+    { n:"Liopleurodon", e:"🐊", s:"Ocean pliosaur", a:"marine", f:[
+      "It was a powerful short-necked marine reptile.",
+      "It had a huge head and crocodile-like teeth.",
+      "It could track prey by smell underwater." ]},
+    { n:"Kronosaurus", e:"🐊", s:"Titan of the deep", a:"marine", f:[
+      "It is named after Kronos, a Greek god.",
+      "Its skull could be around 2.5 metres long.",
+      "It was a fast-swimming ocean hunter." ]},
+    { n:"Tylosaurus", e:"🐊", s:"Ramming mosasaur", a:"marine", f:[
+      "It was a mosasaur up to about 14 metres long.",
+      "It used its bony snout to ram prey.",
+      "It ate fish, sharks and even other marine reptiles." ]},
+    { n:"Archelon", e:"🐢", s:"Giant sea turtle", a:"marine", f:[
+      "It was the largest sea turtle ever, over 4 metres long.",
+      "It lived in a shallow sea that once covered North America.",
+      "Its name means 'ruler turtle'." ]},
+  ];
+
+  const DINOS = SPECIES.map((sp,i)=>({
+    key:"sp"+i, name:sp.n, emoji:sp.e, sub:sp.s, arch:sp.a,
+    sprite: sp.sprite || ("spr-"+sp.a), // per-species override falls back to archetype shape
+    hp:ARCH[sp.a].hp, abilities:ARCH[sp.a].abilities, facts:sp.f
+  }));
+
+  function abilityDesc(a){
+    const e=a.effect;
+    switch(e.t){
+      case "atk":       return "Attack: +"+e.v+" vs a rival you land on (or when attacked)";
+      case "def":       return "Defend: +"+e.v+" vs a wild dino (or when attacked)";
+      case "intimidate":return "Attack: foe rolls −"+e.v+" when you attack a rival";
+      case "survival":  return "Hazard: +"+e.v+" to survive";
+      case "dodge":     return "Hazard: skip it completely";
+      case "heal":      return "Your turn: heal "+e.v+" ❤️";
+      case "extraMove": return "Move: +"+e.v+" extra spaces";
+    }
+    return "";
+  }
+
+  // ---------------- BOARD (32 spaces; safe & bonus are rare) ----------------
+  const BOARD = ["start","adversity","fight","adversity","adversity","fight","adversity","bonus","adversity","fight",
+                 "adversity","adversity","fight","empty","adversity","fight","adversity","adversity","fight","bonus",
+                 "adversity","fight","adversity","adversity","fight","adversity","empty","fight","adversity","adversity",
+                 "fight","finish"];
+  const FINISH = BOARD.length - 1; // 31
+  const TILE_ICON = { start:"🪺", empty:"·", adversity:"⚠️", fight:"⚔️", bonus:"✨", finish:"🏆" };
+
+  // habitat backdrop for each board space (biome bands across the journey)
+  const HABITAT = {
+    forest:    { motif:"🌲", bg:"linear-gradient(180deg,#356b40,#1f3f28)" },
+    swamp:     { motif:"🪷", bg:"linear-gradient(180deg,#2f6258,#1d3f3a)" },
+    plains:    { motif:"🌾", bg:"linear-gradient(180deg,#74803f,#4a5328)" },
+    desert:    { motif:"🌵", bg:"linear-gradient(180deg,#bf9c58,#8a6f3c)" },
+    volcano:   { motif:"🌋", bg:"linear-gradient(180deg,#7a3a31,#3d1e1b)" },
+    mountains: { motif:"⛰️", bg:"linear-gradient(180deg,#5d6470,#383d46)" },
+    coast:     { motif:"🏝️", bg:"linear-gradient(180deg,#3f8392,#275864)" },
+    tundra:    { motif:"❄️", bg:"linear-gradient(180deg,#7c93a3,#50697a)" },
+    nest:      { motif:"🪺", bg:"linear-gradient(180deg,#ffe08a,#e9b73c)" },
+  };
+  function habitatFor(i){
+    if(i===0) return "forest";
+    if(i===FINISH) return "nest";
+    const bands=["forest","swamp","plains","desert","volcano","mountains","coast","tundra"];
+    return bands[Math.floor(i/4)%bands.length];
+  }
+
+  // kind:"hurt" hazards cost a heart on a failed roll; kind:"wash" push you back 2 spaces instead
+  const WASHBACK = 2;
+  const ADVERSITIES = [
+    { icon:"☄️", name:"Asteroid Shower", desc:"Rocks rain down from the sky!", target:5, kind:"hurt" },
+    { icon:"🌋", name:"Volcanic Eruption", desc:"Lava and choking ash everywhere!", target:5, kind:"hurt" },
+    { icon:"🦷", name:"Predator Ambush", desc:"A bigger hunter strikes from cover!", target:4, kind:"hurt" },
+    { icon:"🤒", name:"Disease", desc:"A nasty sickness spreads.", target:4, kind:"hurt" },
+    { icon:"❄️", name:"Cold Snap", desc:"A freezing night sets in.", target:4, kind:"hurt" },
+    { icon:"🌊", name:"Flash Flood", desc:"The river bursts its banks and sweeps you downstream!", target:4, kind:"wash" },
+    { icon:"🕳️", name:"Tar Pit", desc:"Sticky tar drags you back!", target:5, kind:"wash" },
+    { icon:"🌪️", name:"Sandstorm", desc:"Howling wind blows you backward!", target:4, kind:"wash" },
+    { icon:"🏜️", name:"Drought", desc:"You wander back searching for water.", target:4, kind:"wash" },
+    { icon:"🍂", name:"Food Shortage", desc:"You backtrack to find a meal.", target:3, kind:"wash" },
+  ];
+
+  const PCOLORS = ["var(--p0)","var(--p1)","var(--p2)","var(--p3)"];
+
+  // ---------------- STATE ----------------
+  let seatConfig = [];
+  let playerCount = 3;
+  let players = [];
+  let turnIdx = 0;
+  let winner = null;
+  let finishCounter = 0;
+  let hatchActive = 0;
+  let eggClickResolver = null;
+  let turnBudget = { used:false }; // the active player may spend only ONE power per turn
+
+  function showScreen(name){
+    ["setup","hatch","game","end"].forEach(s=>$(s).classList.add("hidden"));
+    $(name).classList.remove("hidden");
+  }
+
+  // ---------------- MODAL / HOW TO PLAY ----------------
+  const HOW_TO = '<h2>🦴 How to Play</h2>'+
+    '<p>Hatch a prehistoric beast, draft its powers, and race across a 32-space board. Be the dino at the nesting ground with the most hearts — or the last one not extinct.</p>'+
+    '<h3>🥚 Hatch &amp; Draft</h3><ul>'+
+      '<li>Each player hatches a random species from 50 (dinosaurs, pterosaurs &amp; marine reptiles) and learns a fun fact about it.</li>'+
+      '<li>Draft <b>3 of 4</b> power cards. Most powers have 2 charges; some show fewer dots (●○) — those are precious.</li>'+
+    '</ul><h3>🎲 On Your Turn</h3><ul>'+
+      '<li>You may spend <b>only one power per turn</b> — pick your moment.</li>'+
+      '<li>If you are hurt and have a heal power, you may use it first.</li>'+
+      '<li>Roll the die and move. A move power can add extra spaces.</li>'+
+      '<li>Resolve the space you land on. You always roll your own dice — even with no power to play.</li>'+
+    '</ul><h3>⚠️ The Spaces</h3><ul>'+
+      '<li><b>Hazard</b> — roll to beat the target. Miss and you either <b>lose a heart</b> (☄️🌋🦷🤒❄️) or get <b>washed back 2 spaces</b> (🌊🕳️🌪️🏜️🍂) — the card tells you which. Survival and dodge powers improve your odds.</li>'+
+      '<li><b>Battle</b> — a <b>wild dino</b> appears. <b>Defend</b> to play it safe, or <b>Attack</b> to be brave: win an attack and you <b>heal a heart</b>, but lose and you are <b>knocked back a space</b>.</li>'+
+      '<li><b>Oasis ✨</b> (rare) — heal a heart, or recharge a spent power.</li>'+
+      '<li><b>Safe ground</b> (rare) — nothing happens.</li>'+
+    '</ul><h3>⚔️ Fighting Other Players</h3><ul>'+
+      '<li>Land on another player\'s space to <b>attack</b> them — use <b>attack</b> powers.</li>'+
+      '<li>If a rival lands on <i>your</i> space, you defend — you may use <b>attack or defend</b> powers.</li>'+
+      '<li><b>Lose a fight against another player and you are knocked back one space.</b></li>'+
+    '</ul><h3>🏆 Winning</h3><ul>'+
+      '<li>Reaching the nesting ground triggers a <b>final round</b> so every player gets the same number of turns.</li>'+
+      '<li>Dinos that reach the nest can clash there once when a rival arrives.</li>'+
+      '<li>The dino at the nest with the <b>most hearts</b> wins. If everyone else goes extinct first, the survivor wins.</li>'+
+    '</ul>';
+  function openModal(html){ $("modalContent").innerHTML=html; $("modal").classList.remove("hidden"); }
+  function closeModal(){ $("modal").classList.add("hidden"); }
+  $("modalClose").addEventListener("click",closeModal);
+  $("modal").addEventListener("click",e=>{ if(e.target===$("modal")) closeModal(); });
+  $("howToBtn").addEventListener("click",()=>openModal(HOW_TO));
+  $("helpBtn").addEventListener("click",()=>openModal(HOW_TO));
+
+  // ---------------- SETUP ----------------
+  function defaultSeats(){
+    seatConfig = [];
+    for(let i=0;i<4;i++) seatConfig.push({ name: i===0 ? "You" : "Dino "+(i+1), type: i===0 ? "human":"cpu" });
+  }
+  function renderSeats(){
+    const wrap = $("seats"); wrap.innerHTML="";
+    for(let i=0;i<playerCount;i++){
+      const s = seatConfig[i];
+      const row = document.createElement("div"); row.className="seat";
+      row.innerHTML =
+        '<span class="dot" style="background:'+PCOLORS[i]+'"></span>'+
+        '<input value="'+s.name.replace(/"/g,"&quot;")+'" maxlength="14">'+
+        '<div class="toggle">'+
+          '<button data-type="human" class="'+(s.type==="human"?"on":"")+'">Human</button>'+
+          '<button data-type="cpu" class="'+(s.type==="cpu"?"on":"")+'">CPU</button>'+
+        '</div>';
+      row.querySelector("input").addEventListener("input",e=>{ seatConfig[i].name = e.target.value || ("Dino "+(i+1)); });
+      row.querySelectorAll(".toggle button").forEach(b=>b.addEventListener("click",()=>{ seatConfig[i].type=b.dataset.type; renderSeats(); }));
+      wrap.appendChild(row);
+    }
+  }
+  $("countToggle").querySelectorAll("button").forEach(b=>{
+    b.addEventListener("click",()=>{
+      $("countToggle").querySelectorAll("button").forEach(x=>x.classList.remove("on"));
+      b.classList.add("on"); playerCount=parseInt(b.dataset.n,10); renderSeats();
+    });
+  });
+
+  // ---------------- HATCH + DRAFT ----------------
+  function buildPlayers(){
+    const pool = DINOS.slice();
+    for(let i=pool.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+    players = [];
+    for(let i=0;i<playerCount;i++){
+      players.push({
+        idx:i, name:seatConfig[i].name, type:seatConfig[i].type, color:PCOLORS[i],
+        dino:null, _assigned:pool[i], _all:null, _fact:"",
+        hp:0, maxHp:0, pos:0, extinct:false, finished:false, finishOrder:0, abilities:[]
+      });
+    }
+  }
+  function assignDino(p){
+    const d=p._assigned; p.dino=d; p.maxHp=d.hp; p.hp=d.hp;
+    p._fact = d.facts[Math.floor(rnd()*d.facts.length)]; // one of 3 facts
+    p._all = d.abilities.map(a=>{
+      // per-ability charge override (a.ch); else dodge powers are single-use, everything else gets 2
+      const ch = (a.ch != null) ? a.ch : (a.effect.t==="dodge" ? 1 : 2);
+      return { ...a, charges:ch, maxCharges:ch };
+    });
+    p.abilities=null;
+  }
+  function pick3(arr){
+    const c=arr.slice();
+    for(let i=c.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); [c[i],c[j]]=[c[j],c[i]]; }
+    return c.slice(0,3);
+  }
+  function heartStr(hp,max){ let s=""; for(let i=0;i<max;i++) s+= i<hp?"❤️":"🖤"; return s; }
+  // render a dino's silhouette icon at `size` px, tinted to `color` (any CSS colour)
+  function dinoSvg(dino, size, color){
+    const c = color ? (";color:"+color) : "";
+    return '<svg class="dino-svg" style="width:'+size+'px;height:'+size+'px'+c+'" aria-hidden="true"><use href="#'+dino.sprite+'"/></svg>';
+  }
+
+  function renderHatch(){
+    const grid = $("hatchGrid"); grid.innerHTML="";
+    players.forEach((p,i)=>{
+      const card = document.createElement("div");
+      const hatched = !!p.dino;
+      card.className = "egg-card"+((!hatched && i===hatchActive) ? " active":"");
+      if(hatched){
+        const abils = p.abilities ? p.abilities : [];
+        card.innerHTML =
+          '<div class="nameseat" style="color:'+p.color+'">■ '+p.name+'</div>'+
+          '<div class="egg-emoji crack">'+dinoSvg(p.dino,54,"var(--bone)")+'</div>'+
+          '<div class="dino-name">'+p.dino.name+'</div>'+
+          '<div class="dino-sub">'+p.dino.sub+'</div>'+
+          (p._fact ? '<div class="fact">💡 '+p._fact+'</div>' : '')+
+          '<div class="hp-pill">'+heartStr(p.maxHp,p.maxHp)+'</div>'+
+          (abils.length ? '<div class="mini-abils">'+abils.map(a=>'<div>'+a.icon+' <b>'+a.name+'</b></div>').join("")+'</div>'
+                        : '<div class="dino-sub" style="margin-top:6px">drafting powers…</div>');
+      } else {
+        card.innerHTML =
+          '<div class="nameseat" style="color:'+p.color+'">■ '+p.name+'</div>'+
+          '<div class="egg-emoji">🥚</div>'+
+          '<div class="dino-sub">'+(i===hatchActive ? (p.type==="human"?"tap to hatch!":"hatching…") : "waiting…")+'</div>';
+        if(i===hatchActive && p.type==="human")
+          card.addEventListener("click",()=>{ if(eggClickResolver){ const r=eggClickResolver; eggClickResolver=null; r(); } });
+      }
+      grid.appendChild(card);
+    });
+  }
+
+  function pickThreePowers(p){
+    return new Promise(res=>{
+      const sel=[]; // ordered selection so picks can be undone individually
+      const pp=$("powerPicker"); pp.classList.remove("hidden");
+      function draw(){
+        const full=sel.length===3;
+        pp.innerHTML =
+          '<h3>'+p.dino.emoji+' '+p.name+"'s "+p.dino.name+'</h3>'+
+          '<div class="pp-fact">💡 '+p._fact+'</div>'+
+          '<div class="pp-sub">Pick <b>3 of 4</b> powers. Tap a chosen power again to remove it, or use ↺ Clear to start over.</div>'+
+          '<div class="power-grid">'+
+            p._all.map((a,idx)=>{
+              const pos=sel.indexOf(idx);
+              const on=pos>=0, locked=!on && full;
+              return '<button class="power-opt'+(on?' on':'')+(locked?' locked':'')+'" data-i="'+idx+'">'+
+                '<div class="po-h">'+(on?'<span class="po-badge">'+(pos+1)+'</span>':'')+a.icon+' '+a.name+'</div>'+
+                '<div class="po-d">'+abilityDesc(a)+'</div>'+
+                (on?'<div class="po-rm">✕ tap to remove</div>':(locked?'<div class="po-rm">remove one to swap</div>':''))+
+                '</button>';
+            }).join("")+
+          '</div>'+
+          '<div class="pp-actions">'+
+            '<button class="btn alt small" id="clearPowers"'+(sel.length?'':' disabled')+'>↺ Clear</button>'+
+            '<button class="btn gold small" id="confirmPowers"'+(full?'':' disabled')+'>Confirm ('+sel.length+'/3)</button>'+
+          '</div>';
+        pp.querySelectorAll(".power-opt").forEach(b=>b.onclick=()=>{
+          const i=+b.dataset.i, pos=sel.indexOf(i);
+          if(pos>=0) sel.splice(pos,1);        // deselect
+          else if(sel.length<3) sel.push(i);   // select
+          draw();
+        });
+        $("clearPowers").onclick=()=>{ sel.length=0; draw(); };
+        $("confirmPowers").onclick=()=>{ if(sel.length===3){ p.abilities=sel.map(i=>p._all[i]); pp.classList.add("hidden"); pp.innerHTML=""; res(); } };
+      }
+      draw();
+    });
+  }
+
+  async function runHatch(){
+    $("startGame").classList.add("hidden");
+    $("powerPicker").classList.add("hidden");
+    for(let i=0;i<players.length;i++){
+      hatchActive=i;
+      const p=players[i];
+      $("hatchMsg").textContent = p.type==="human" ? p.name+", tap your egg to hatch it!" : p.name+" is choosing an egg…";
+      renderHatch();
+      if(p.type==="human") await new Promise(res=>{ eggClickResolver=res; });
+      else await delay(800);
+
+      assignDino(p);
+      renderHatch();
+      await delay(450);
+
+      if(p.type==="human"){
+        $("hatchMsg").textContent = p.name+" hatched a "+p.dino.name+"! Draft 3 of its 4 powers.";
+        await pickThreePowers(p);
+      } else {
+        p.abilities = pick3(p._all);
+      }
+      renderHatch();
+      await delay(500);
+    }
+    $("hatchMsg").textContent = "Everyone's hatched and drafted! Ready to play?";
+    $("startGame").classList.remove("hidden");
+  }
+
+  // ---------------- RENDER GAME ----------------
+  function renderTrack(){
+    const t=$("track"); t.innerHTML="";
+    BOARD.forEach((type,i)=>{
+      const tile=document.createElement("div");
+      const here = players.filter(p=> (p.pos===i && !p.finished) || (p.finished && i===FINISH && p.pos===FINISH) );
+      const cur = (players[turnIdx] && players[turnIdx].pos===i) ? " cur":"";
+      const hab = HABITAT[habitatFor(i)];
+      tile.className="tile t-"+type+cur;
+      tile.style.background = hab.bg;
+      tile.innerHTML='<span class="tnum">'+i+'</span>'+
+        '<span class="hab-motif">'+hab.motif+'</span>'+
+        (type!=="empty" ? '<span class="ttype">'+TILE_ICON[type]+'</span>' : '')+
+        '<div class="tokens">'+ here.map(p=>'<span class="tok'+(p.extinct?" dead":"")+'" style="box-shadow:0 0 0 3px '+p.color+', 0 4px 8px rgba(0,0,0,.55)">'+(p.extinct?"💀":dinoSvg(p.dino,27,p.color))+'</span>').join("")+'</div>';
+      t.appendChild(tile);
+    });
+  }
+  function renderPlayers(){
+    const wrap=$("players"); wrap.innerHTML="";
+    players.forEach((p,i)=>{
+      const c=document.createElement("div");
+      c.className="pcard"+(i===turnIdx&&!winner?" active":"")+(p.extinct?" extinct":"")+(p.finished&&!p.extinct?" finished":"");
+      c.innerHTML =
+        '<div class="ph"><span class="pe">'+dinoSvg(p.dino,26,p.color)+'</span><div><div class="pn" style="color:'+p.color+'">'+p.name+'</div>'+
+        '<div class="psub">'+p.dino.name+(p.finished?" · 🏆 at nest":"")+'</div></div></div>'+
+        '<div class="hearts">'+heartStr(p.hp,p.maxHp)+'</div>'+
+        '<div class="charges">'+ p.abilities.map(a=>
+            '<div class="ab">'+a.icon+' '+a.name+'<span class="dots">'+("●".repeat(a.charges)+"○".repeat(a.maxCharges-a.charges))+'</span></div>'
+          ).join("") +'</div>'+
+        (p.extinct?'<div class="extinct-tag">💀</div>':'');
+      wrap.appendChild(c);
+    });
+  }
+  function refresh(){ renderTrack(); renderPlayers(); }
+  function scrollToTile(i){ const tiles=$("track").children; if(tiles[i]) tiles[i].scrollIntoView({inline:"center",block:"nearest"}); }
+
+  // ---------------- LOG / PROMPT ----------------
+  function log(html,cls){ const d=document.createElement("div"); d.innerHTML=html; if(cls)d.className=cls; $("log").appendChild(d); $("log").scrollTop=$("log").scrollHeight; }
+  function setEvent(html){ $("eventCard").innerHTML=html; }
+  function clearEvent(){ $("eventCard").innerHTML=""; }
+  function setStatus(html){ $("promptTitle").innerHTML=html; $("promptBtns").innerHTML=""; }
+  function clearDice(){ $("dice").textContent=""; }
+
+  function ask(titleHtml, options){
+    return new Promise(res=>{
+      $("promptTitle").innerHTML=titleHtml;
+      const box=$("promptBtns"); box.innerHTML="";
+      options.forEach(o=>{
+        const b=document.createElement("button");
+        b.className="btn small "+(o.cls||""); b.innerHTML=o.label;
+        if(o.disabled) b.disabled=true;
+        b.addEventListener("click",()=>{ box.innerHTML=""; res(o.value); });
+        box.appendChild(b);
+      });
+    });
+  }
+  async function rollDie(){
+    const el=$("dice");
+    el.classList.add("rolling");
+    for(let i=0;i<10;i++){ el.textContent=DICE[Math.floor(rnd()*6)]; await delay(55); }
+    el.classList.remove("rolling");
+    const v=d6(); el.textContent=DICE[v-1]+" "+v; return v;
+  }
+
+  function avail(p,phase){ return p.abilities.filter(a=>a.phase===phase && a.charges>0); }
+  function spend(a){ a.charges--; }
+
+  // ---------------- TURN ----------------
+  async function takeTurn(p){
+    turnIdx=p.idx; refresh(); scrollToTile(p.pos);
+    turnBudget = { used:false }; // fresh one-power allowance for this turn
+    $("turnText").innerHTML='<span class="who" style="background:'+p.color+'">'+dinoSvg(p.dino,18,"#1c2b1c")+' '+p.name+'</span> — '+p.dino.name;
+    clearEvent(); clearDice();
+
+    // heal phase (counts as this turn's one power)
+    const heals=avail(p,"heal");
+    if(!turnBudget.used && heals.length && p.hp<p.maxHp){
+      const a=heals[0];
+      if(p.type==="human"){
+        const use=await ask(p.name+", you're hurt. Use <b>"+a.icon+" "+a.name+"</b> to heal 1 ❤️? <span class=note>(your one power this turn)</span>",
+          [{label:"Heal +1 ❤️",value:true,cls:"gold"},{label:"Save it",value:false,cls:"alt"}]);
+        if(use){ spend(a); turnBudget.used=true; p.hp=Math.min(p.maxHp,p.hp+1); log('<span class="hl">'+p.name+'</span> heals with '+a.name+'.','good'); refresh(); await delay(450); }
+      } else if(p.hp<=p.maxHp-2){
+        spend(a); turnBudget.used=true; p.hp=Math.min(p.maxHp,p.hp+1); log('<span class="hl">'+p.name+'</span> heals with '+a.name+'.','good'); refresh(); await delay(550);
+      }
+    }
+
+    // movement roll
+    if(p.type==="human") await ask("<b>"+p.name+"</b>, roll the dice to move!",[{label:"🎲 Roll Dice",value:"go",cls:"gold"}]);
+    else { setStatus(p.name+" is rolling…"); await delay(450); }
+    let roll=await rollDie();
+    log('<span class="hl">'+p.name+'</span> rolls a '+roll+'.');
+    let distance=roll;
+
+    // move ability (counts as this turn's one power)
+    const moves=avail(p,"move");
+    if(!turnBudget.used && moves.length){
+      const a=moves[0];
+      const wouldWin=(p.pos+roll<FINISH)&&(p.pos+roll+a.effect.v>=FINISH);
+      if(p.type==="human"){
+        const use=await ask("Use <b>"+a.icon+" "+a.name+"</b> for +"+a.effect.v+" spaces? <span class=note>(your one power this turn)</span>",
+          [{label:"💨 +"+a.effect.v+" spaces",value:true,cls:"gold"},{label:"No thanks",value:false,cls:"alt"}]);
+        if(use){ spend(a); turnBudget.used=true; distance+=a.effect.v; log('<span class="hl">'+p.name+'</span> uses '+a.name+'! (+'+a.effect.v+')','good'); }
+      } else if(wouldWin){
+        spend(a); turnBudget.used=true; distance+=a.effect.v; log('<span class="hl">'+p.name+'</span> sprints with '+a.name+'!','good');
+      }
+    }
+
+    // move token
+    const dest=Math.min(FINISH,p.pos+distance);
+    while(p.pos<dest){ p.pos++; refresh(); scrollToTile(p.pos); await delay(120); }
+    await delay(200);
+
+    if(p.pos===FINISH){
+      if(!p.finished){ p.finished=true; p.finishOrder=++finishCounter; log('🏆 <span class="hl">'+p.name+'</span> reaches the nesting ground!','good'); }
+      const rivals=players.filter(q=>q!==p && !q.extinct && q.pos===FINISH);
+      if(rivals.length){
+        const foe=await chooseFoe(p,rivals);
+        log('⚔️ A territorial clash at the nest: '+p.name+' vs '+foe.name+'!');
+        setEvent('<div class="ev-icon">🏆⚔️</div><div class="ev-name">Clash at the Nesting Ground!</div><div class="ev-desc">Only the strongest holds the best spot.</div>');
+        await delay(500);
+        await playerFight(p,foe);
+      } else {
+        setEvent('<div class="ev-icon">🏆</div><div class="ev-name">Made it!</div><div class="ev-desc">'+p.name+' settles safely into the nesting ground.</div>');
+      }
+      refresh(); await delay(800);
+      return;
+    }
+
+    await resolveLanding(p);
+  }
+
+  async function resolveLanding(p){
+    // collision with another PLAYER dino -> they fight each other
+    const rivals=players.filter(q=>q!==p && !q.extinct && q.pos===p.pos);
+    if(rivals.length){
+      const foe=await chooseFoe(p,rivals);
+      log('⚔️ <span class="hl">'+p.name+'</span> bumps into <span class="hl">'+foe.name+'</span> — they fight!');
+      setEvent('<div class="ev-icon">'+p.dino.emoji+'⚔️'+foe.dino.emoji+'</div><div class="ev-name">Territory Dispute!</div><div class="ev-desc">Two dinos on the same ground!</div>');
+      await delay(500);
+      await playerFight(p,foe);
+      return; // collision replaces the tile event
+    }
+    const type=BOARD[p.pos];
+    if(type==="adversity") await adversityPhase(p);
+    else if(type==="fight") await wildFight(p);
+    else if(type==="bonus") await bonusPhase(p);
+    else { setEvent('<div class="ev-icon">🌿</div><div class="ev-name">Safe ground</div><div class="ev-desc">A rare quiet spot. Nothing happens. Phew!</div>'); await delay(700); }
+  }
+
+  async function chooseFoe(p, rivals){
+    if(rivals.length===1) return rivals[0];
+    if(p.type==="human")
+      return await ask("Multiple rivals here — who do you fight?",
+        rivals.map(f=>({label:f.dino.emoji+" "+f.name+" "+heartStr(f.hp,f.maxHp), value:f})));
+    return rivals.slice().sort((a,b)=> a.hp-b.hp || b.pos-a.pos)[0];
+  }
+
+  // ---------------- ADVERSITY ----------------
+  async function adversityPhase(p){
+    const adv=ADVERSITIES[Math.floor(rnd()*ADVERSITIES.length)];
+    const miss = adv.kind==="wash" ? ("back "+WASHBACK+" spaces") : "lose 1 ❤️";
+    setEvent('<div class="ev-icon">'+adv.icon+'</div><div class="ev-name">'+adv.name+'</div><div class="ev-desc">'+adv.desc+'</div><div class="ev-target">Roll '+adv.target+'+ to survive · miss = '+miss+'</div>');
+    clearDice();
+    log('<span class="hl">'+p.name+'</span> faces '+adv.icon+' <b>'+adv.name+'</b> (needs '+adv.target+'+, miss = '+miss+').');
+    let bonus=0, dodged=false;
+
+    // hazard power — at most one, and only if this turn's single power is unspent
+    const opts=avail(p,"adversity");
+    if(!turnBudget.used && opts.length){
+      if(p.type==="human"){
+        const choice=await ask("Play a power to survive, or face it? <span class=note>(your one power this turn)</span>",
+          opts.map(a=>({ label:a.icon+" "+a.name+(a.effect.t==="dodge"?" (auto-survive)":" (+"+a.effect.v+")")+" <span class=note>×"+a.charges+"</span>", value:a, cls:"gold" }))
+              .concat([{label:"🎲 Roll & face it",value:"roll",cls:"alt"}]));
+        if(choice!=="roll"){
+          spend(choice); turnBudget.used=true;
+          if(choice.effect.t==="dodge"){ dodged=true; log('<span class="hl">'+p.name+'</span> uses '+choice.name+' to slip away unharmed!','good'); }
+          else { bonus+=choice.effect.v; log('<span class="hl">'+p.name+'</span> uses '+choice.name+' (+'+choice.effect.v+').'); }
+        }
+      } else {
+        const risky = p.hp===1 || adv.target>=5 || (adv.target>=4 && p.hp<=2);
+        const dodge=opts.find(a=>a.effect.t==="dodge");
+        const surv=opts.find(a=>a.effect.t==="survival");
+        if(risky && dodge){ spend(dodge); turnBudget.used=true; dodged=true; log('<span class="hl">'+p.name+'</span> uses '+dodge.name+' to escape!','good'); }
+        else if(risky && surv){ spend(surv); turnBudget.used=true; bonus+=surv.effect.v; log('<span class="hl">'+p.name+'</span> uses '+surv.name+' (+'+surv.effect.v+').'); }
+      }
+    }
+    refresh();
+    if(dodged){ setEvent('<div class="ev-icon">'+adv.icon+'➡️💨</div><div class="ev-name">Dodged!</div><div class="ev-desc">'+p.name+' avoids it completely.</div>'); await delay(800); return; }
+
+    if(p.type==="human") await ask("🎲 Roll to survive the "+adv.name+"!",[{label:"🎲 Roll the Dice",value:"go",cls:"gold"}]);
+    else { setStatus(p.name+" braces for impact…"); await delay(400); }
+    const r=await rollDie();
+    const total=r+bonus;
+    if(total>=adv.target){
+      setEvent('<div class="ev-icon">'+adv.icon+'</div><div class="ev-name" style="color:#9be29b">Survived!</div><div class="ev-desc">Rolled '+r+(bonus?" +"+bonus+" = "+total:"")+' vs '+adv.target+'.</div>');
+      log('<span class="hl">'+p.name+'</span> survives '+adv.name+'! ('+total+' vs '+adv.target+')','good');
+    } else if(adv.kind==="wash"){
+      const from=p.pos; p.pos=Math.max(0,p.pos-WASHBACK); const moved=from-p.pos;
+      setEvent('<div class="ev-icon">'+adv.icon+'↩️</div><div class="ev-name" style="color:#ffd27a">Washed back!</div><div class="ev-desc">Rolled '+r+(bonus?" +"+bonus+" = "+total:"")+' vs '+adv.target+'. Pushed back '+moved+' space'+(moved===1?"":"s")+'.</div>');
+      log('↩️ <span class="hl">'+p.name+'</span> is pushed back by '+adv.name+' to space '+p.pos+'.','bad');
+      refresh(); scrollToTile(p.pos);
+    } else {
+      p.hp--;
+      setEvent('<div class="ev-icon">'+adv.icon+'💥</div><div class="ev-name" style="color:#ff9b8c">Hit!</div><div class="ev-desc">Rolled '+r+(bonus?" +"+bonus+" = "+total:"")+' vs '+adv.target+'. Lose 1 ❤️</div>');
+      log('<span class="hl">'+p.name+'</span> is hurt by '+adv.name+'! '+heartStr(Math.max(0,p.hp),p.maxHp),'bad');
+      checkExtinct(p);
+    }
+    refresh(); await delay(850);
+  }
+
+  // ---------------- FIGHTS ----------------
+  function fightCardHtml(a,d,ar,dr,mid){
+    return '<div class="vs">'+
+      '<div class="side"><div class="e">'+dinoSvg(a.dino,34,a.color||"#c9c9c9")+'</div><div class="n" style="color:'+(a.color||"#bbb")+'">'+a.name+'</div><div class="r">'+ar+'</div><div class="ev-desc">'+heartStr(a.hp,a.maxHp)+'</div></div>'+
+      '<div class="mid">'+mid+'</div>'+
+      '<div class="side"><div class="e">'+dinoSvg(d.dino,34,d.color||"#c9c9c9")+'</div><div class="n" style="color:'+(d.color||"#bbb")+'">'+d.name+'</div><div class="r">'+dr+'</div><div class="ev-desc">'+heartStr(d.hp,d.maxHp)+'</div></div>'+
+    '</div>';
+  }
+  async function diceFlourish(){ const el=$("dice"); el.classList.add("rolling"); for(let i=0;i<8;i++){ el.textContent=DICE[Math.floor(rnd()*6)]+" ⚔️ "+DICE[Math.floor(rnd()*6)]; await delay(60); } el.classList.remove("rolling"); }
+
+  // which fight powers may be used in a given context:
+  //  attackPlayer = you landed on a rival (aggressor) -> attack powers
+  //  npc          = wild-dino battle (you defend)     -> defend powers
+  //  defendPlayer = a rival landed on you             -> attack OR defend
+  function usableFight(p, context){
+    const cats = context==="npc" ? ["def"]
+              : context==="attackPlayer" ? ["atk","intimidate"]
+              : ["atk","intimidate","def"];
+    return p.abilities.filter(a=> a.phase==="fight" && a.charges>0 && cats.indexOf(a.effect.t)>=0);
+  }
+
+  // play at most ONE fight power, gated by the given budget ({used:bool})
+  async function collectFight(p, context, budget){
+    if(budget.used) return { bonus:0, intim:0 };
+    const opts=usableFight(p, context);
+    if(opts.length===0) return { bonus:0, intim:0 };
+    let pick=null;
+    if(p.type==="human"){
+      const verb = context==="npc" ? "defend against the wild dino"
+                 : context==="attackPlayer" ? "attack" : "fight back";
+      const choice=await ask(dinoSvg(p.dino,18,p.color)+" <b>"+p.name+"</b> — play a power to "+verb+"?",
+        opts.map(a=>({ label:a.icon+" "+a.name+(a.effect.t==="intimidate"?" (foe −"+a.effect.v+")":" (+"+a.effect.v+")")+" <span class=note>×"+a.charges+"</span>", value:a, cls:"gold" }))
+            .concat([{label:"✔️ No power",value:"done",cls:"alt"}]));
+      if(choice==="done") return { bonus:0, intim:0 };
+      pick=choice;
+    } else {
+      const want = context==="npc" ? (p.hp<=2) : true; // CPU saves defends vs NPC unless hurt
+      if(!want) return { bonus:0, intim:0 };
+      pick=opts.slice().sort((x,y)=>y.effect.v-x.effect.v)[0];
+    }
+    spend(pick); budget.used=true;
+    log('&nbsp;&nbsp;'+p.name+' plays '+pick.name+'.'); refresh();
+    return pick.effect.t==="intimidate" ? { bonus:0, intim:pick.effect.v } : { bonus:pick.effect.v, intim:0 };
+  }
+
+  // a player who loses a fight against another player is knocked back one space
+  async function retreat(p){
+    if(!p || p.extinct || p.finished || p.pos<=0) return;
+    p.pos--; log('↩️ <span class="hl">'+p.name+'</span> is knocked back to space '+p.pos+'.','bad');
+    refresh(); scrollToTile(p.pos); await delay(550);
+  }
+
+  async function playerFight(attacker, defender){
+    setEvent(fightCardHtml(attacker,defender,"","","VS")); await delay(350);
+    // attacker landed on the defender -> attack powers; defender may attack OR defend.
+    // attacker spends from this turn's budget; defender gets a separate one-power allowance.
+    const atk=await collectFight(attacker,"attackPlayer",turnBudget);
+    const def=await collectFight(defender,"defendPlayer",{used:false});
+    if(attacker.type==="human"||defender.type==="human") await ask("🎲 Roll for the clash!",[{label:"🎲 Roll the Dice",value:"go",cls:"gold"}]);
+    const ar=d6(), dr=d6();
+    const aTotal=ar+atk.bonus-def.intim, dTotal=dr+def.bonus-atk.intim;
+    await diceFlourish(); $("dice").textContent=ar+" ⚔️ "+dr;
+    setEvent(fightCardHtml(attacker,defender,String(aTotal),String(dTotal),"VS"));
+    log("&nbsp;&nbsp;"+attacker.name+" "+aTotal+"  vs  "+defender.name+" "+dTotal);
+    await delay(500);
+    let loser=null;
+    if(aTotal>dTotal){ defender.hp--; loser=defender; log('<span class="hl">'+attacker.name+'</span> wins the clash! '+defender.name+' −1 ❤️','good'); checkExtinct(defender); }
+    else if(dTotal>aTotal){ attacker.hp--; loser=attacker; log('<span class="hl">'+defender.name+'</span> holds firm! '+attacker.name+' −1 ❤️','bad'); checkExtinct(attacker); }
+    else log("A draw — both dinos back off unharmed.");
+    refresh(); await delay(750);
+    if(loser && !loser.extinct) await retreat(loser);
+  }
+
+  async function wildFight(p){
+    const t=DINOS[Math.floor(rnd()*DINOS.length)];
+    const wild={ name:"Wild "+t.name, dino:t, color:"#c9c9c9", hp:t.hp, maxHp:t.hp };
+    const wb=1+Math.floor(rnd()*2); // innate strength 1..2
+    const fact=t.facts[Math.floor(rnd()*t.facts.length)]; // one of its 3 facts
+    setEvent('<div class="ev-icon">⚔️ '+t.emoji+'</div><div class="ev-name">A wild '+t.name+' appears!</div><div class="ev-desc">💡 '+fact+'</div>');
+    log('⚔️ <span class="hl">'+p.name+'</span> meets a wild '+t.name+'! <span class=note>'+fact+'</span>');
+    await delay(750);
+
+    // Defend (safe) OR Attack (brave: win heals, lose knocks you back). One power, this turn.
+    let bonus=0, intim=0, aggressive=false;
+    if(!turnBudget.used){
+      const fp=avail(p,"fight");
+      const defs=fp.filter(a=>a.effect.t==="def");
+      const atks=fp.filter(a=>a.effect.t==="atk"||a.effect.t==="intimidate");
+      if(p.type==="human" && (defs.length||atks.length)){
+        const options=[];
+        defs.forEach(a=>options.push({ label:"🛡️ "+a.name+" — Defend (+"+a.effect.v+", safe) <span class=note>×"+a.charges+"</span>", value:{a,mode:"def"}, cls:"gold" }));
+        atks.forEach(a=>options.push({ label:"⚔️ "+a.name+" — Attack ("+(a.effect.t==="intimidate"?"foe −"+a.effect.v:"+"+a.effect.v)+"; win heals, lose = back 1) <span class=note>×"+a.charges+"</span>", value:{a,mode:"atk"}, cls:"gold" }));
+        options.push({ label:"🎲 Just fight (no power)", value:{mode:"none"}, cls:"alt" });
+        const choice=await ask(dinoSvg(p.dino,18,p.color)+" <b>"+p.name+"</b> — defend or attack the wild "+t.name+"?", options);
+        if(choice.mode!=="none"){
+          const a=choice.a; spend(a); turnBudget.used=true;
+          if(choice.mode==="atk"){ aggressive=true; if(a.effect.t==="intimidate") intim=a.effect.v; else bonus=a.effect.v; }
+          else bonus=a.effect.v;
+          log('&nbsp;&nbsp;'+p.name+' '+(aggressive?"attacks":"defends")+' with '+a.name+'.');
+        }
+      } else if(p.type==="cpu" && p.hp<=2){
+        // hurt CPU: attack for the comeback heal if it can, else defend
+        const bestAtk=atks.slice().sort((x,y)=>y.effect.v-x.effect.v)[0];
+        const bestDef=defs.slice().sort((x,y)=>y.effect.v-x.effect.v)[0];
+        if(bestAtk){ spend(bestAtk); turnBudget.used=true; aggressive=true; if(bestAtk.effect.t==="intimidate") intim=bestAtk.effect.v; else bonus=bestAtk.effect.v; log('&nbsp;&nbsp;'+p.name+' attacks with '+bestAtk.name+'.'); }
+        else if(bestDef){ spend(bestDef); turnBudget.used=true; bonus=bestDef.effect.v; log('&nbsp;&nbsp;'+p.name+' defends with '+bestDef.name+'.'); }
+      }
+    }
+
+    if(p.type==="human") await ask("🎲 Roll to face the wild "+t.name+"!",[{label:"🎲 Roll the Dice",value:"go",cls:"gold"}]);
+    const pr=d6(), wr=d6();
+    const pTotal=pr+bonus, wTotal=wr+wb-intim;
+    await diceFlourish(); $("dice").textContent=pr+" ⚔️ "+wr;
+    setEvent(fightCardHtml(p,wild,String(pTotal),String(wTotal),"VS"));
+    log("&nbsp;&nbsp;"+p.name+" "+pTotal+"  vs  wild "+t.name+" "+wTotal);
+    await delay(500);
+    if(pTotal>=wTotal){
+      if(aggressive){
+        if(p.hp<p.maxHp){ p.hp++; log('<span class="hl">'+p.name+'</span> overpowers the wild '+t.name+' and feasts — heal 1 ❤️! '+heartStr(p.hp,p.maxHp),'good'); }
+        else { const s=p.abilities.filter(a=>a.charges<a.maxCharges).sort((a,b)=>a.charges-b.charges)[0];
+          if(s){ s.charges++; log('<span class="hl">'+p.name+'</span> overpowers the wild '+t.name+' and recharges '+s.name+'!','good'); }
+          else log('<span class="hl">'+p.name+'</span> overpowers the wild '+t.name+'!','good'); }
+      } else {
+        log('<span class="hl">'+p.name+'</span> fights off the wild '+t.name+'!','good');
+      }
+    } else {
+      p.hp--; log('<span class="hl">'+p.name+'</span> is wounded by the wild '+t.name+'! '+heartStr(Math.max(0,p.hp),p.maxHp),'bad');
+      checkExtinct(p);
+      if(aggressive && !p.extinct) await retreat(p);
+    }
+    refresh(); await delay(850);
+  }
+
+  // ---------------- BONUS ----------------
+  async function bonusPhase(p){
+    setEvent('<div class="ev-icon">✨</div><div class="ev-name">Lush Oasis</div><div class="ev-desc">A rare, safe haven to recover.</div>');
+    await delay(600);
+    if(p.hp<p.maxHp){ p.hp++; log('<span class="hl">'+p.name+'</span> rests and heals 1 ❤️. '+heartStr(p.hp,p.maxHp),'good'); }
+    else {
+      const spent=p.abilities.filter(a=>a.charges<a.maxCharges).sort((a,b)=>a.charges-b.charges)[0];
+      if(spent){ spent.charges++; log('<span class="hl">'+p.name+'</span> recharges '+spent.name+'.','good'); }
+      else log('<span class="hl">'+p.name+'</span> is in perfect shape!','good');
+    }
+    refresh(); await delay(700);
+  }
+
+  // ---------------- EXTINCTION / WIN ----------------
+  function checkExtinct(p){
+    if(p.hp<=0 && !p.extinct){ p.hp=0; p.extinct=true; log('💀 <span class="hl">'+p.name+'</span> the '+p.dino.name+' has gone EXTINCT!','bad'); }
+  }
+  function checkLastStanding(){
+    const alive=players.filter(p=>!p.extinct);
+    if(alive.length===0){ winner="none"; return true; }
+    if(players.length>1 && alive.length===1){ winner=alive[0]; return true; }
+    return false;
+  }
+  function evaluateFinishers(){
+    const finishers=players.filter(p=>p.finished && !p.extinct);
+    if(finishers.length){
+      finishers.sort((a,b)=> b.hp-a.hp || a.finishOrder-b.finishOrder);
+      winner=finishers[0];
+    } else {
+      const alive=players.filter(p=>!p.extinct);
+      if(alive.length){ alive.sort((a,b)=> b.pos-a.pos || b.hp-a.hp); winner=alive[0]; }
+      else winner="none";
+    }
+  }
+
+  // ---------------- MAIN LOOP (round-based, equal turns) ----------------
+  async function gameLoop(){
+    const startIdx=turnIdx;
+    const order=[]; for(let k=0;k<players.length;k++) order.push((startIdx+k)%players.length);
+    let finalRound=false;
+    while(true){
+      for(const i of order){
+        const p=players[i];
+        if(p.extinct||p.finished) continue;
+        turnIdx=i;
+        await takeTurn(p);
+        if(checkLastStanding()){ refresh(); await delay(600); showEnd(); return; }
+        if(p.finished && !finalRound){ finalRound=true; log('⏳ <b>Final round!</b> Everyone gets one more turn to reach the nesting ground.','good'); }
+      }
+      if(finalRound) break;
+      if(players.filter(p=>!p.extinct && !p.finished).length===0) break;
+    }
+    evaluateFinishers();
+    refresh(); await delay(600); showEnd();
+  }
+
+  function showEnd(){
+    showScreen("end");
+    const standings=players.slice().sort((a,b)=>{
+      if(a.extinct!==b.extinct) return a.extinct?1:-1;
+      if(a.finished!==b.finished) return a.finished?-1:1;
+      return (b.hp-a.hp) || (b.pos-a.pos);
+    });
+    $("endStandings").innerHTML = standings.map(p=>
+      p.dino.emoji+' '+p.name+' — '+(p.extinct?'💀 extinct':(p.finished?'🏆 nest, '+heartStr(p.hp,p.maxHp):'space '+p.pos+', '+heartStr(p.hp,p.maxHp)))
+    ).join('<br>');
+
+    if(winner==="none"){
+      $("endMedal").textContent="💀";
+      $("endTitle").textContent="Total Extinction!";
+      $("endMsg").textContent="Every creature perished. The age of dinosaurs ends in a tie… try again!";
+      return;
+    }
+    const w=winner;
+    if(w.finished){
+      $("endMedal").textContent="🏆";
+      $("endTitle").innerHTML=dinoSvg(w.dino,38,"var(--gold)")+" "+w.name+" wins!";
+      $("endMsg").textContent="Reached the nesting ground with the most hearts ("+w.hp+" ❤️) and grew up strong. A true Extinction Fighter!";
+    } else {
+      $("endMedal").textContent="👑";
+      $("endTitle").innerHTML=dinoSvg(w.dino,38,"var(--gold)")+" "+w.name+" wins!";
+      $("endMsg").textContent="Last one standing — every rival went extinct while your "+w.dino.name+" endured.";
+    }
+  }
+
+  // ---------------- WIRE UP ----------------
+  defaultSeats(); renderSeats();
+
+  $("toHatch").addEventListener("click",()=>{ buildPlayers(); showScreen("hatch"); runHatch(); });
+  $("startGame").addEventListener("click",()=>{
+    winner=null; finishCounter=0;
+    turnIdx=Math.floor(rnd()*players.length); // random first player
+    showScreen("game");
+    $("log").innerHTML="";
+    log("Extinction Fighters — the battle for survival begins! 🦴");
+    log('🎲 <span class="hl">'+players[turnIdx].name+'</span> is chosen to go first!','good');
+    refresh();
+    gameLoop();
+  });
+  $("rematch").addEventListener("click",()=>{ buildPlayers(); showScreen("hatch"); runHatch(); });
+  $("newSetup").addEventListener("click",()=>{ showScreen("setup"); });
+
+  showScreen("setup");
+})();
+</script>
+<script>
+  /* Register the offline service worker (no-op on file:// or unsupported browsers) */
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+  }
+</script>
+</body>
+</html>

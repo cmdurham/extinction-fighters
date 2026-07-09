@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Extinction Fighters">
+  <rect width="512" height="512" fill="#1f3a2a"/>
+  <rect width="512" height="512" fill="url(#g)"/>
+  <defs>
+    <radialGradient id="g" cx="50%" cy="32%" r="75%">
+      <stop offset="0%" stop-color="#2f5a40"/>
+      <stop offset="100%" stop-color="#15241b"/>
+    </radialGradient>
+  </defs>
+  <!-- apex silhouette, centred in the maskable safe zone -->
+  <g transform="translate(96,96) scale(5)" fill="#ffce54">
+    <path d="M4,46 C12,42 16,40 20,38 C22,34 22,28 24,24 C25,20 28,16 33,15 C38,13 44,14 47,17 C49,19 49,21 47,22 C44,22 42,22 40,23 C42,25 42,27 40,28 C37,29 35,30 34,33 C33,38 31,42 28,44 C20,46 12,47 4,46 Z"/>
+    <rect x="27" y="42" width="5" height="14" rx="1"/>
+    <rect x="21" y="43" width="4" height="12" rx="1"/>
+  </g>
+</svg>
