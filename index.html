@@ -379,6 +379,10 @@
       scroll-behavior:auto !important;
     }
   }
+
+  /* ---- gameplay updates: position badge ---- */
+  .pos-badge{ margin-left:auto; flex:0 0 auto; font-size:11px; font-weight:800; color:var(--gold);
+    background:rgba(0,0,0,.32); padding:3px 8px; border-radius:10px; white-space:nowrap; box-shadow:inset 0 1px 2px rgba(0,0,0,.3); }
 </style>
 </head>
 <body>
@@ -440,7 +444,7 @@
   <!-- SETUP -->
   <section id="setup" class="screen">
     <div class="logo"><span class="small">PREHISTORIC SURVIVAL</span><span class="big">EXTINCTION FIGHTERS</span></div>
-    <p class="tag">Hatch one of <b>50 prehistoric species</b> — dinosaurs, pterosaurs and marine reptiles — draft its powers, and race across a 32-space board. Survive asteroids, floods, wild dinos and rival players. The dino that reaches the nesting ground with the most hearts wins. Inspired by Dino Dana.</p>
+    <p class="tag">Hatch one of <b>50 prehistoric species</b> — dinosaurs, pterosaurs and marine reptiles — draft its powers, and race across a 32-space board. Survive asteroids, floods, wild dinos and rival players. Even defeat isn't the end — a new egg awaits! Be the first, second, or third dino to reach the nesting ground. Inspired by Dino Dana.</p>
 
     <div class="count-row">
       <span>Players:</span>
@@ -800,7 +804,7 @@
   // ---------------- BOARD (32 spaces; safe & bonus are rare) ----------------
   const BOARD = ["start","adversity","fight","adversity","adversity","fight","adversity","bonus","adversity","fight",
                  "adversity","adversity","fight","empty","adversity","fight","adversity","adversity","fight","bonus",
-                 "adversity","fight","adversity","adversity","fight","adversity","empty","fight","adversity","adversity",
+                 "adversity","fight","adversity","adversity","fight","adversity","empty","fight","bonus","adversity",
                  "fight","finish"];
   const FINISH = BOARD.length - 1; // 31
   const TILE_ICON = { start:"🪺", empty:"·", adversity:"⚠️", fight:"⚔️", bonus:"✨", finish:"🏆" };
@@ -851,6 +855,7 @@
   let hatchActive = 0;
   let eggClickResolver = null;
   let turnBudget = { used:false }; // the active player may spend only ONE power per turn
+  let modalLocked = false; // true while a blocking modal (e.g. respawn draft) must be resolved before closing
 
   function showScreen(name){
     ["setup","hatch","game","end"].forEach(s=>$(s).classList.add("hidden"));
@@ -859,7 +864,7 @@
 
   // ---------------- MODAL / HOW TO PLAY ----------------
   const HOW_TO = '<h2>🦴 How to Play</h2>'+
-    '<p>Hatch a prehistoric beast, draft its powers, and race across a 32-space board. Be the dino at the nesting ground with the most hearts — or the last one not extinct.</p>'+
+    '<p>Hatch a prehistoric beast, draft its powers, and race across a 32-space board. Be the first, second, or third dino to reach the nesting ground!</p>'+
     '<h3>🥚 Hatch &amp; Draft</h3><ul>'+
       '<li>Each player hatches a random species from 50 (dinosaurs, pterosaurs &amp; marine reptiles) and learns a fun fact about it.</li>'+
       '<li>Draft <b>3 of 4</b> power cards. Most powers have 2 charges; some show fewer dots (●○) — those are precious.</li>'+
@@ -871,21 +876,25 @@
     '</ul><h3>⚠️ The Spaces</h3><ul>'+
       '<li><b>Hazard</b> — roll to beat the target. Miss and you either <b>lose a heart</b> (☄️🌋🦷🤒❄️) or get <b>washed back 2 spaces</b> (🌊🕳️🌪️🏜️🍂) — the card tells you which. Survival and dodge powers improve your odds.</li>'+
       '<li><b>Battle</b> — a <b>wild dino</b> appears. <b>Defend</b> to play it safe, or <b>Attack</b> to be brave: win an attack and you <b>heal a heart</b>, but lose and you are <b>knocked back a space</b>.</li>'+
-      '<li><b>Oasis ✨</b> (rare) — heal a heart, or recharge a spent power.</li>'+
+      '<li><b>Oasis ✨</b> (3 on the board) — heal a heart, or recharge a spent power.</li>'+
       '<li><b>Safe ground</b> (rare) — nothing happens.</li>'+
     '</ul><h3>⚔️ Fighting Other Players</h3><ul>'+
       '<li>Land on another player\'s space to <b>attack</b> them — use <b>attack</b> powers.</li>'+
       '<li>If a rival lands on <i>your</i> space, you defend — you may use <b>attack or defend</b> powers.</li>'+
       '<li><b>Lose a fight against another player and you are knocked back one space.</b></li>'+
+      '<li>Win a fight <b>on an oasis</b> and you get to enjoy its healing too — as long as you\'re still standing there afterward!</li>'+
+    '</ul><h3>🥚 Defeat &amp; Respawn</h3><ul>'+
+      '<li>If your dino runs out of hearts, it\'s not the end — a <b>new mystery egg</b> hatches for you at the halfway point back to the start.</li>'+
+      '<li>Your new dino is a fresh species with its own hearts and (for humans) a fresh 3-of-4 power draft.</li>'+
     '</ul><h3>🏆 Winning</h3><ul>'+
-      '<li>Reaching the nesting ground triggers a <b>final round</b> so every player gets the same number of turns.</li>'+
-      '<li>Dinos that reach the nest can clash there once when a rival arrives.</li>'+
-      '<li>The dino at the nest with the <b>most hearts</b> wins. If everyone else goes extinct first, the survivor wins.</li>'+
+      '<li>Reaching the nesting ground makes you the <b>1st place</b> finisher — but play continues so everyone gets a real shot at <b>2nd and 3rd place</b>.</li>'+
+      '<li>Dinos already at the nest can be challenged there by later arrivals.</li>'+
+      '<li>Finishers are ranked by who reached the nest with the <b>most hearts</b>; anyone still racing is ranked by how far they got.</li>'+
     '</ul>';
   function openModal(html){ $("modalContent").innerHTML=html; $("modal").classList.remove("hidden"); }
   function closeModal(){ $("modal").classList.add("hidden"); }
   $("modalClose").addEventListener("click",closeModal);
-  $("modal").addEventListener("click",e=>{ if(e.target===$("modal")) closeModal(); });
+  $("modal").addEventListener("click",e=>{ if(e.target===$("modal") && !modalLocked) closeModal(); });
   $("howToBtn").addEventListener("click",()=>openModal(HOW_TO));
   $("helpBtn").addEventListener("click",()=>openModal(HOW_TO));
 
@@ -1070,9 +1079,10 @@
     players.forEach((p,i)=>{
       const c=document.createElement("div");
       c.className="pcard"+(i===turnIdx&&!winner?" active":"")+(p.extinct?" extinct":"")+(p.finished&&!p.extinct?" finished":"");
+      const posBadge = p.finished ? "" : '<span class="pos-badge">📍 '+p.pos+'/'+FINISH+'</span>';
       c.innerHTML =
         '<div class="ph"><span class="pe">'+dinoSvg(p.dino,26,p.color)+'</span><div><div class="pn" style="color:'+p.color+'">'+p.name+'</div>'+
-        '<div class="psub">'+p.dino.name+(p.finished?" · 🏆 at nest":"")+'</div></div></div>'+
+        '<div class="psub">'+p.dino.name+(p.finished?" · 🏆 at nest":"")+'</div></div>'+posBadge+'</div>'+
         '<div class="hearts">'+heartStr(p.hp,p.maxHp)+'</div>'+
         '<div class="charges">'+ p.abilities.map(a=>
             '<div class="ab">'+a.icon+' '+a.name+'<span class="dots">'+("●".repeat(a.charges)+"○".repeat(a.maxCharges-a.charges))+'</span></div>'
@@ -1185,10 +1195,16 @@
     const rivals=players.filter(q=>q!==p && !q.extinct && q.pos===p.pos);
     if(rivals.length){
       const foe=await chooseFoe(p,rivals);
-      log('⚔️ <span class="hl">'+p.name+'</span> bumps into <span class="hl">'+foe.name+'</span> — they fight!');
-      setEvent('<div class="ev-icon">'+p.dino.emoji+'⚔️'+foe.dino.emoji+'</div><div class="ev-name">Territory Dispute!</div><div class="ev-desc">Two dinos on the same ground!</div>');
+      const spot=p.pos, onOasis=BOARD[spot]==="bonus";
+      log('⚔️ <span class="hl">'+p.name+'</span> bumps into <span class="hl">'+foe.name+'</span> — they fight!'+(onOasis?' <span class="note">(at a lush oasis!)</span>':''));
+      setEvent('<div class="ev-icon">'+p.dino.emoji+'⚔️'+foe.dino.emoji+'</div><div class="ev-name">Territory Dispute!</div><div class="ev-desc">Two dinos on the same ground'+(onOasis?' — the oasis awaits the victor!':'')+'</div>');
       await delay(500);
-      await playerFight(p,foe);
+      const result=await playerFight(p,foe);
+      if(onOasis && result.loser===foe && p.pos===spot && !p.extinct){
+        log('✨ <span class="hl">'+p.name+'</span> claims the oasis and gets to rest!','good');
+        await applyOasisBonus(p);
+        await delay(700);
+      }
       return; // collision replaces the tile event
     }
     const type=BOARD[p.pos];
@@ -1254,7 +1270,7 @@
       p.hp--;
       setEvent('<div class="ev-icon">'+adv.icon+'💥</div><div class="ev-name" style="color:#ff9b8c">Hit!</div><div class="ev-desc">Rolled '+r+(bonus?" +"+bonus+" = "+total:"")+' vs '+adv.target+'. Lose 1 ❤️</div>');
       log('<span class="hl">'+p.name+'</span> is hurt by '+adv.name+'! '+heartStr(Math.max(0,p.hp),p.maxHp),'bad');
-      checkExtinct(p);
+      await checkExtinct(p);
     }
     refresh(); await delay(850);
   }
@@ -1324,12 +1340,13 @@
     setEvent(fightCardHtml(attacker,defender,String(aTotal),String(dTotal),"VS"));
     log("&nbsp;&nbsp;"+attacker.name+" "+aTotal+"  vs  "+defender.name+" "+dTotal);
     await delay(500);
-    let loser=null;
-    if(aTotal>dTotal){ defender.hp--; loser=defender; log('<span class="hl">'+attacker.name+'</span> wins the clash! '+defender.name+' −1 ❤️','good'); checkExtinct(defender); }
-    else if(dTotal>aTotal){ attacker.hp--; loser=attacker; log('<span class="hl">'+defender.name+'</span> holds firm! '+attacker.name+' −1 ❤️','bad'); checkExtinct(attacker); }
+    let loser=null, died=false;
+    if(aTotal>dTotal){ defender.hp--; loser=defender; log('<span class="hl">'+attacker.name+'</span> wins the clash! '+defender.name+' −1 ❤️','good'); died=await checkExtinct(defender); }
+    else if(dTotal>aTotal){ attacker.hp--; loser=attacker; log('<span class="hl">'+defender.name+'</span> holds firm! '+attacker.name+' −1 ❤️','bad'); died=await checkExtinct(attacker); }
     else log("A draw — both dinos back off unharmed.");
     refresh(); await delay(750);
-    if(loser && !loser.extinct) await retreat(loser);
+    if(loser && !died) await retreat(loser);
+    return { loser, died };
   }
 
   async function wildFight(p){
@@ -1386,63 +1403,147 @@
       }
     } else {
       p.hp--; log('<span class="hl">'+p.name+'</span> is wounded by the wild '+t.name+'! '+heartStr(Math.max(0,p.hp),p.maxHp),'bad');
-      checkExtinct(p);
-      if(aggressive && !p.extinct) await retreat(p);
+      const died=await checkExtinct(p);
+      if(aggressive && !died) await retreat(p);
     }
     refresh(); await delay(850);
   }
 
   // ---------------- BONUS ----------------
-  async function bonusPhase(p){
-    setEvent('<div class="ev-icon">✨</div><div class="ev-name">Lush Oasis</div><div class="ev-desc">A rare, safe haven to recover.</div>');
-    await delay(600);
+  async function applyOasisBonus(p){
     if(p.hp<p.maxHp){ p.hp++; log('<span class="hl">'+p.name+'</span> rests and heals 1 ❤️. '+heartStr(p.hp,p.maxHp),'good'); }
     else {
       const spent=p.abilities.filter(a=>a.charges<a.maxCharges).sort((a,b)=>a.charges-b.charges)[0];
       if(spent){ spent.charges++; log('<span class="hl">'+p.name+'</span> recharges '+spent.name+'.','good'); }
       else log('<span class="hl">'+p.name+'</span> is in perfect shape!','good');
     }
-    refresh(); await delay(700);
+    refresh();
+  }
+  async function bonusPhase(p){
+    setEvent('<div class="ev-icon">✨</div><div class="ev-name">Lush Oasis</div><div class="ev-desc">A rare, safe haven to recover.</div>');
+    await delay(600);
+    await applyOasisBonus(p);
+    await delay(700);
   }
 
-  // ---------------- EXTINCTION / WIN ----------------
-  function checkExtinct(p){
-    if(p.hp<=0 && !p.extinct){ p.hp=0; p.extinct=true; log('💀 <span class="hl">'+p.name+'</span> the '+p.dino.name+' has gone EXTINCT!','bad'); }
+  // ---------------- EXTINCTION / RESPAWN ----------------
+  function pickNewSpeciesFor(p){
+    const others=players.filter(q=>q!==p && q.dino).map(q=>q.dino.key);
+    let pool=DINOS.filter(d=> d.key!==p.dino.key && others.indexOf(d.key)<0);
+    if(!pool.length) pool=DINOS.filter(d=> d.key!==p.dino.key);
+    if(!pool.length) pool=DINOS;
+    return pool[Math.floor(rnd()*pool.length)];
   }
-  function checkLastStanding(){
-    const alive=players.filter(p=>!p.extinct);
-    if(alive.length===0){ winner="none"; return true; }
-    if(players.length>1 && alive.length===1){ winner=alive[0]; return true; }
+
+  function draftPowersInModal(p, freshAbilities){
+    return new Promise(res=>{
+      const sel=[];
+      modalLocked=true;
+      $("modalClose").classList.add("hidden");
+      function draw(){
+        const full=sel.length===3;
+        openModal(
+          '<h2>🥚 A New Egg Hatches!</h2>'+
+          '<p>'+p.name+"'s new dino is a <b>"+p.dino.name+'</b> '+dinoSvg(p.dino,22,p.color)+'</p>'+
+          '<p style="color:#ffe7a8">💡 '+p._fact+'</p>'+
+          '<p class="pp-sub">Pick <b>3 of 4</b> powers. Tap a chosen power again to remove it.</p>'+
+          '<div class="power-grid">'+
+            freshAbilities.map((a,idx)=>{
+              const pos=sel.indexOf(idx); const on=pos>=0, locked=!on&&full;
+              return '<button class="power-opt'+(on?' on':'')+(locked?' locked':'')+'" data-i="'+idx+'">'+
+                '<div class="po-h">'+(on?'<span class="po-badge">'+(pos+1)+'</span>':'')+a.icon+' '+a.name+'</div>'+
+                '<div class="po-d">'+abilityDesc(a)+'</div>'+
+                (on?'<div class="po-rm">✕ tap to remove</div>':(locked?'<div class="po-rm">remove one to swap</div>':''))+
+                '</button>';
+            }).join("")+
+          '</div>'+
+          '<div class="pp-actions">'+
+            '<button class="btn alt small" id="respawnClear"'+(sel.length?'':' disabled')+'>↺ Clear</button>'+
+            '<button class="btn gold small" id="respawnConfirm"'+(full?'':' disabled')+'>Confirm ('+sel.length+'/3)</button>'+
+          '</div>'
+        );
+        $("modalClose").classList.add("hidden");
+        $("modalContent").querySelectorAll(".power-opt").forEach(b=>b.onclick=()=>{
+          const i=+b.dataset.i, pos=sel.indexOf(i);
+          if(pos>=0) sel.splice(pos,1); else if(sel.length<3) sel.push(i);
+          draw();
+        });
+        $("respawnClear").onclick=()=>{ sel.length=0; draw(); };
+        $("respawnConfirm").onclick=()=>{
+          if(sel.length===3){
+            modalLocked=false; $("modalClose").classList.remove("hidden"); closeModal();
+            res(sel.map(i=>freshAbilities[i]));
+          }
+        };
+      }
+      draw();
+    });
+  }
+
+  async function respawnPlayer(p){
+    const deathPos=p.pos;
+    const newPos=Math.floor(deathPos/2);
+    const newDino=pickNewSpeciesFor(p);
+    p.dino=newDino; p.maxHp=newDino.hp; p.hp=newDino.hp;
+    p._fact=newDino.facts[Math.floor(rnd()*newDino.facts.length)];
+    p.pos=newPos; p.extinct=false; p.finished=false; p.finishOrder=0;
+    const freshAll=newDino.abilities.map(a=>{
+      const ch=(a.ch!=null)?a.ch:(a.effect.t==="dodge"?1:2);
+      return { ...a, charges:ch, maxCharges:ch };
+    });
+    log('🥚 <span class="hl">'+p.name+'</span> finds a new egg! A <b>'+newDino.name+'</b> hatches at space '+newPos+'.','good');
+    refresh(); scrollToTile(newPos);
+    await delay(700);
+    if(p.type==="human") p.abilities=await draftPowersInModal(p, freshAll);
+    else p.abilities=pick3(freshAll);
+    refresh(); await delay(400);
+  }
+
+  async function checkExtinct(p){
+    if(p.hp<=0 && !p.extinct){
+      p.hp=0; p.extinct=true;
+      log('💀 <span class="hl">'+p.name+'</span> the '+p.dino.name+' has gone EXTINCT!','bad');
+      refresh(); await delay(900);
+      await respawnPlayer(p);
+      return true;
+    }
     return false;
   }
+
+  // ---------------- RANKING / WIN ----------------
+  function rankPlayers(){
+    return players.slice().sort((a,b)=>{
+      if(a.extinct!==b.extinct) return a.extinct?1:-1;
+      if(a.finished!==b.finished) return a.finished?-1:1;
+      if(a.finished) return (b.hp-a.hp) || (a.finishOrder-b.finishOrder);
+      return (b.pos-a.pos) || (b.hp-a.hp);
+    });
+  }
   function evaluateFinishers(){
-    const finishers=players.filter(p=>p.finished && !p.extinct);
-    if(finishers.length){
-      finishers.sort((a,b)=> b.hp-a.hp || a.finishOrder-b.finishOrder);
-      winner=finishers[0];
-    } else {
-      const alive=players.filter(p=>!p.extinct);
-      if(alive.length){ alive.sort((a,b)=> b.pos-a.pos || b.hp-a.hp); winner=alive[0]; }
-      else winner="none";
-    }
+    const ranked=rankPlayers();
+    winner = ranked.length ? ranked[0] : "none";
   }
 
-  // ---------------- MAIN LOOP (round-based, equal turns) ----------------
+  // ---------------- MAIN LOOP (everyone races; play continues past 1st place for 2nd/3rd) ----------------
   async function gameLoop(){
     const startIdx=turnIdx;
     const order=[]; for(let k=0;k<players.length;k++) order.push((startIdx+k)%players.length);
-    let finalRound=false;
+    const EXTRA_LAPS=6; // grace laps after the first finisher, so 2nd/3rd place have a real shot
+    let finishTriggeredAt=-1, lap=0;
     while(true){
       for(const i of order){
         const p=players[i];
-        if(p.extinct||p.finished) continue;
+        if(p.finished) continue;
         turnIdx=i;
         await takeTurn(p);
-        if(checkLastStanding()){ refresh(); await delay(600); showEnd(); return; }
-        if(p.finished && !finalRound){ finalRound=true; log('⏳ <b>Final round!</b> Everyone gets one more turn to reach the nesting ground.','good'); }
+        if(p.finished && finishTriggeredAt<0){
+          finishTriggeredAt=lap;
+          log('🎉 <span class="hl">'+p.name+'</span> takes 1st place! Play continues so everyone has a shot at 2nd and 3rd.','good');
+        }
       }
-      if(finalRound) break;
-      if(players.filter(p=>!p.extinct && !p.finished).length===0) break;
+      if(players.every(p=>p.finished)) break;
+      if(finishTriggeredAt>=0 && (lap-finishTriggeredAt)>=EXTRA_LAPS) break;
+      lap++;
     }
     evaluateFinishers();
     refresh(); await delay(600); showEnd();
@@ -1450,31 +1551,27 @@
 
   function showEnd(){
     showScreen("end");
-    const standings=players.slice().sort((a,b)=>{
-      if(a.extinct!==b.extinct) return a.extinct?1:-1;
-      if(a.finished!==b.finished) return a.finished?-1:1;
-      return (b.hp-a.hp) || (b.pos-a.pos);
-    });
-    $("endStandings").innerHTML = standings.map(p=>
-      p.dino.emoji+' '+p.name+' — '+(p.extinct?'💀 extinct':(p.finished?'🏆 nest, '+heartStr(p.hp,p.maxHp):'space '+p.pos+', '+heartStr(p.hp,p.maxHp)))
+    const ranked=rankPlayers();
+    const medals=["🥇","🥈","🥉"];
+    $("endStandings").innerHTML = ranked.map((p,i)=>
+      (medals[i]||"　")+' '+dinoSvg(p.dino,18,p.color)+' '+p.name+' — '+
+      (p.finished?'🏆 nest, '+heartStr(p.hp,p.maxHp):'space '+p.pos+', '+heartStr(p.hp,p.maxHp))
     ).join('<br>');
 
-    if(winner==="none"){
+    if(winner==="none"||!ranked.length){
       $("endMedal").textContent="💀";
-      $("endTitle").textContent="Total Extinction!";
-      $("endMsg").textContent="Every creature perished. The age of dinosaurs ends in a tie… try again!";
+      $("endTitle").textContent="No Survivors!";
+      $("endMsg").textContent="Something went very wrong out there… try again!";
       return;
     }
-    const w=winner;
-    if(w.finished){
-      $("endMedal").textContent="🏆";
-      $("endTitle").innerHTML=dinoSvg(w.dino,38,"var(--gold)")+" "+w.name+" wins!";
-      $("endMsg").textContent="Reached the nesting ground with the most hearts ("+w.hp+" ❤️) and grew up strong. A true Extinction Fighter!";
-    } else {
-      $("endMedal").textContent="👑";
-      $("endTitle").innerHTML=dinoSvg(w.dino,38,"var(--gold)")+" "+w.name+" wins!";
-      $("endMsg").textContent="Last one standing — every rival went extinct while your "+w.dino.name+" endured.";
-    }
+    const w=ranked[0];
+    $("endMedal").textContent = w.finished ? "🏆" : "🥇";
+    $("endTitle").innerHTML=dinoSvg(w.dino,38,"var(--gold)")+" "+w.name+" takes 1st place!";
+    let msg = w.finished
+      ? "Reached the nesting ground with the most hearts ("+w.hp+" ❤️) and grew up strong."
+      : "Made it furthest across the board when the race ended.";
+    if(ranked.length>1) msg += " 🥈 2nd place: "+ranked[1].name+(ranked.length>2?" · 🥉 3rd place: "+ranked[2].name:"")+".";
+    $("endMsg").textContent = msg;
   }
 
   // ---------------- WIRE UP ----------------
