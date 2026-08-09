@@ -856,6 +856,7 @@
   let eggClickResolver = null;
   let turnBudget = { used:false }; // the active player may spend only ONE power per turn
   let modalLocked = false; // true while a blocking modal (e.g. respawn draft) must be resolved before closing
+  let currentLap = 0; // which lap of the turn order we're on; used to detect same-lap nest ties
 
   function showScreen(name){
     ["setup","hatch","game","end"].forEach(s=>$(s).classList.add("hidden"));
@@ -887,9 +888,10 @@
       '<li>If your dino runs out of hearts, it\'s not the end — a <b>new mystery egg</b> hatches for you at the halfway point back to the start.</li>'+
       '<li>Your new dino is a fresh species with its own hearts and (for humans) a fresh 3-of-4 power draft.</li>'+
     '</ul><h3>🏆 Winning</h3><ul>'+
-      '<li>Reaching the nesting ground makes you the <b>1st place</b> finisher — but play continues so everyone gets a real shot at <b>2nd and 3rd place</b>.</li>'+
-      '<li>Dinos already at the nest can be challenged there by later arrivals.</li>'+
-      '<li>Finishers are ranked by who reached the nest with the <b>most hearts</b>; anyone still racing is ranked by how far they got.</li>'+
+      '<li>Reaching the nesting ground makes you a finisher, ranked by the <b>order you arrived</b> — but play continues so everyone gets a real shot at <b>2nd and 3rd place</b>.</li>'+
+      '<li>Once only one player is left racing, their last-place finish is obvious and the game ends.</li>'+
+      '<li>If two dinos reach the nest on the <b>exact same turn</b>, it\'s a photo finish — they fight a <b>sudden-death tiebreaker</b> (no respawn, just placement) to decide who ranks higher.</li>'+
+      '<li>Anyone still racing when the game ends is ranked by how far they got.</li>'+
     '</ul>';
   function openModal(html){ $("modalContent").innerHTML=html; $("modal").classList.remove("hidden"); }
   function closeModal(){ $("modal").classList.add("hidden"); }
@@ -936,7 +938,7 @@
       players.push({
         idx:i, name:seatConfig[i].name, type:seatConfig[i].type, color:PCOLORS[i],
         dino:null, _assigned:pool[i], _all:null, _fact:"",
-        hp:0, maxHp:0, pos:0, extinct:false, finished:false, finishOrder:0, abilities:[]
+        hp:0, maxHp:0, pos:0, extinct:false, finished:false, finishOrder:0, finishLap:-1, abilities:[]
       });
     }
   }
@@ -1172,14 +1174,18 @@
     await delay(200);
 
     if(p.pos===FINISH){
-      if(!p.finished){ p.finished=true; p.finishOrder=++finishCounter; log('🏆 <span class="hl">'+p.name+'</span> reaches the nesting ground!','good'); }
-      const rivals=players.filter(q=>q!==p && !q.extinct && q.pos===FINISH);
-      if(rivals.length){
-        const foe=await chooseFoe(p,rivals);
-        log('⚔️ A territorial clash at the nest: '+p.name+' vs '+foe.name+'!');
-        setEvent('<div class="ev-icon">🏆⚔️</div><div class="ev-name">Clash at the Nesting Ground!</div><div class="ev-desc">Only the strongest holds the best spot.</div>');
-        await delay(500);
-        await playerFight(p,foe);
+      // arriving at the nest always finishes you — no fight needed unless a rival ALSO
+      // finished this same lap (a genuine tie), which needs a tiebreaker for placement.
+      p.finished=true; p.finishOrder=++finishCounter; p.finishLap=currentLap;
+      log('🏆 <span class="hl">'+p.name+'</span> reaches the nesting ground!','good');
+      const tieRival=players.find(q=>q!==p && q.finished && q.finishLap===currentLap);
+      if(tieRival){
+        log('⚡ <span class="hl">'+p.name+'</span> and <span class="hl">'+tieRival.name+'</span> arrived together — a tiebreaker is needed!');
+        setEvent('<div class="ev-icon">🏆⚡</div><div class="ev-name">Photo Finish!</div><div class="ev-desc">Both dinos reached the nest the same turn — fight it out for placement!</div>');
+        await delay(600);
+        const loser=await nestTiebreakFight(p,tieRival);
+        const winnerP=(loser===p)?tieRival:p;
+        if(loser.finishOrder<winnerP.finishOrder){ const tmp=loser.finishOrder; loser.finishOrder=winnerP.finishOrder; winnerP.finishOrder=tmp; }
       } else {
         setEvent('<div class="ev-icon">🏆</div><div class="ev-name">Made it!</div><div class="ev-desc">'+p.name+' settles safely into the nesting ground.</div>');
       }
@@ -1349,6 +1355,37 @@
     return { loser, died };
   }
 
+  // sudden-death tiebreaker for a same-lap nest tie: fight round after round until one
+  // side runs out of hearts. This is placement-only — the loser does NOT go extinct or
+  // respawn, they just rank below the winner.
+  async function nestTiebreakFight(a, b){
+    setEvent(fightCardHtml(a,b,"","","VS ⚡")); await delay(400);
+    log('⚡ <b>Sudden-death tiebreaker!</b> '+a.name+' vs '+b.name+' — fighting until one is defeated.');
+    let round=0;
+    while(a.hp>0 && b.hp>0 && round<30){
+      round++;
+      const fa=await collectFight(a,"defendPlayer",{used:false});
+      const fb=await collectFight(b,"defendPlayer",{used:false});
+      if(a.type==="human"||b.type==="human") await ask("🎲 Roll for the tiebreaker!",[{label:"🎲 Roll the Dice",value:"go",cls:"gold"}]);
+      const ar=d6(), br=d6();
+      const aTotal=ar+fa.bonus-fb.intim, bTotal=br+fb.bonus-fa.intim;
+      await diceFlourish(); $("dice").textContent=ar+" ⚔️ "+br;
+      setEvent(fightCardHtml(a,b,String(aTotal),String(bTotal),"VS ⚡"));
+      log("&nbsp;&nbsp;Round "+round+": "+a.name+" "+aTotal+"  vs  "+b.name+" "+bTotal);
+      await delay(500);
+      if(aTotal>bTotal){ b.hp--; log('<span class="hl">'+a.name+'</span> lands a blow! '+b.name+' −1 ❤️','good'); }
+      else if(bTotal>aTotal){ a.hp--; log('<span class="hl">'+b.name+'</span> lands a blow! '+a.name+' −1 ❤️','bad'); }
+      else log("A draw this round — they clash again!");
+      refresh(); await delay(600);
+    }
+    a.hp=Math.max(0,a.hp); b.hp=Math.max(0,b.hp);
+    let loser = a.hp<=0 ? a : b.hp<=0 ? b : (a.hp<=b.hp ? a : b); // fallback if the safety cap hit with neither at 0
+    const winnerP = loser===a ? b : a;
+    log('🏆 <span class="hl">'+winnerP.name+'</span> wins the tiebreaker and claims the higher placement!','good');
+    refresh(); await delay(700);
+    return loser;
+  }
+
   async function wildFight(p){
     const t=DINOS[Math.floor(rnd()*DINOS.length)];
     const wild={ name:"Wild "+t.name, dino:t, color:"#c9c9c9", hp:t.hp, maxHp:t.hp };
@@ -1486,7 +1523,7 @@
     const newDino=pickNewSpeciesFor(p);
     p.dino=newDino; p.maxHp=newDino.hp; p.hp=newDino.hp;
     p._fact=newDino.facts[Math.floor(rnd()*newDino.facts.length)];
-    p.pos=newPos; p.extinct=false; p.finished=false; p.finishOrder=0;
+    p.pos=newPos; p.extinct=false; p.finished=false; p.finishOrder=0; p.finishLap=-1;
     const freshAll=newDino.abilities.map(a=>{
       const ch=(a.ch!=null)?a.ch:(a.effect.t==="dodge"?1:2);
       return { ...a, charges:ch, maxCharges:ch };
@@ -1515,7 +1552,9 @@
     return players.slice().sort((a,b)=>{
       if(a.extinct!==b.extinct) return a.extinct?1:-1;
       if(a.finished!==b.finished) return a.finished?-1:1;
-      if(a.finished) return (b.hp-a.hp) || (a.finishOrder-b.finishOrder);
+      // finishers rank strictly by arrival order — same-lap ties are already
+      // resolved (and finishOrder swapped) by the sudden-death tiebreaker.
+      if(a.finished) return a.finishOrder-b.finishOrder;
       return (b.pos-a.pos) || (b.hp-a.hp);
     });
   }
@@ -1528,8 +1567,10 @@
   async function gameLoop(){
     const startIdx=turnIdx;
     const order=[]; for(let k=0;k<players.length;k++) order.push((startIdx+k)%players.length);
-    const EXTRA_LAPS=6; // grace laps after the first finisher, so 2nd/3rd place have a real shot
-    let finishTriggeredAt=-1, lap=0;
+    const EXTRA_LAPS=6; // safety cap in case stragglers never finish
+    let finishTriggeredAt=-1;
+    currentLap=0;
+    outer:
     while(true){
       for(const i of order){
         const p=players[i];
@@ -1537,13 +1578,15 @@
         turnIdx=i;
         await takeTurn(p);
         if(p.finished && finishTriggeredAt<0){
-          finishTriggeredAt=lap;
-          log('🎉 <span class="hl">'+p.name+'</span> takes 1st place! Play continues so everyone has a shot at 2nd and 3rd.','good');
+          finishTriggeredAt=currentLap;
+          log('🎉 <span class="hl">'+p.name+'</span> takes 1st place! Play continues for the remaining placements.','good');
         }
+        // once only one player is left unfinished, their placement (last) is already obvious
+        if(players.filter(q=>!q.finished).length<=1) break outer;
       }
       if(players.every(p=>p.finished)) break;
-      if(finishTriggeredAt>=0 && (lap-finishTriggeredAt)>=EXTRA_LAPS) break;
-      lap++;
+      if(finishTriggeredAt>=0 && (currentLap-finishTriggeredAt)>=EXTRA_LAPS) break;
+      currentLap++;
     }
     evaluateFinishers();
     refresh(); await delay(600); showEnd();
@@ -1568,7 +1611,7 @@
     $("endMedal").textContent = w.finished ? "🏆" : "🥇";
     $("endTitle").innerHTML=dinoSvg(w.dino,38,"var(--gold)")+" "+w.name+" takes 1st place!";
     let msg = w.finished
-      ? "Reached the nesting ground with the most hearts ("+w.hp+" ❤️) and grew up strong."
+      ? "Reached the nesting ground first and grew up strong."
       : "Made it furthest across the board when the race ended.";
     if(ranked.length>1) msg += " 🥈 2nd place: "+ranked[1].name+(ranked.length>2?" · 🥉 3rd place: "+ranked[2].name:"")+".";
     $("endMsg").textContent = msg;
