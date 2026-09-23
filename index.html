@@ -383,6 +383,50 @@
   /* ---- gameplay updates: position badge ---- */
   .pos-badge{ margin-left:auto; flex:0 0 auto; font-size:11px; font-weight:800; color:var(--gold);
     background:rgba(0,0,0,.32); padding:3px 8px; border-radius:10px; white-space:nowrap; box-shadow:inset 0 1px 2px rgba(0,0,0,.3); }
+
+  /* ---- view toggle (2D board / 3D first-person) ---- */
+  .help-btn:hover{ transform:translateY(-50%) scale(1.06); }   /* keep vertical centering on hover */
+  .view-btn{ left:8px; right:auto; }
+  .turnbar{ padding-left:64px; padding-right:84px; }
+  #world3d{ display:none; }
+
+  /* ---- 3D first-person mode: the existing UI becomes a heads-up display ---- */
+  #game.in3d{ position:fixed; inset:0; z-index:5; display:block; gap:0; background:#0c1811; }
+  #game.in3d #world3d{ display:block; position:absolute; inset:0; overflow:hidden; }
+  .world3d-canvas{ display:block; touch-action:none; cursor:grab; }
+  .world3d-canvas:active{ cursor:grabbing; }
+  .world3d-flash{ position:absolute; inset:0; pointer-events:none; opacity:0; }
+  .world3d-hint{ position:absolute; left:50%; top:112px; transform:translateX(-50%); padding:6px 14px; border-radius:20px; font-size:13px; font-weight:700;
+    background:rgba(0,0,0,.45); color:#fff; pointer-events:none; transition:opacity .8s; }
+  .world3d-hint.gone{ opacity:0; }
+  #game.in3d .turnbar{ position:absolute; top:10px; left:50%; transform:translateX(-50%); width:min(600px,94vw); z-index:3;
+    background:rgba(8,18,12,.55); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+  #game.in3d .track{ position:absolute; top:62px; left:50%; transform:translateX(-50%); max-width:96vw; z-index:3; gap:3px; padding:5px 6px;
+    background:rgba(8,18,12,.5); border-radius:12px; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+  #game.in3d .tile{ width:17px; height:24px; border-radius:5px; box-shadow:none; animation:none; }
+  #game.in3d .tile.cur{ outline:2px solid var(--gold); outline-offset:1px; }
+  #game.in3d .tile .hab-motif, #game.in3d .tile .tnum{ display:none; }
+  #game.in3d .tile .ttype{ width:13px; height:13px; line-height:13px; font-size:8px; margin-top:2px; box-shadow:none; }
+  #game.in3d .tile .tokens{ bottom:1px; gap:0; }
+  #game.in3d .tok{ padding:0; background:none; box-shadow:none !important; }
+  #game.in3d .tok .dino-svg{ width:9px !important; height:9px !important; }
+  #game.in3d .players{ position:absolute; left:10px; top:108px; width:196px; flex-direction:column; flex-wrap:nowrap; gap:6px; z-index:3;
+    max-height:calc(100vh - 120px); overflow-y:auto; }
+  #game.in3d .pcard{ flex:none; max-width:none; padding:6px 9px; background:rgba(8,18,12,.6); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+  #game.in3d .pcard:not(.active) .charges{ display:none; }
+  #game.in3d .pcard .hearts{ font-size:13px; margin-top:2px; }
+  #game.in3d .stage{ position:absolute; left:50%; bottom:12px; transform:translateX(-50%); width:min(600px,94vw); max-height:46vh; overflow-y:auto;
+    z-index:3; min-height:0; padding:10px 12px; gap:6px; background:rgba(8,18,12,.62); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+  #game.in3d .ev-icon{ font-size:26px; }
+  #game.in3d .ev-name{ font-size:16px; }
+  #game.in3d .dice{ font-size:30px; min-height:34px; }
+  #game.in3d .log{ max-height:62px; }
+  @media (max-width:760px){
+    #game.in3d .players{ top:100px; left:6px; right:6px; width:auto; flex-direction:row; overflow-x:auto; overflow-y:hidden; max-height:none; }
+    #game.in3d .pcard{ min-width:150px; }
+    #game.in3d .pcard .charges{ display:none; }
+    .world3d-hint{ top:190px; }
+  }
 </style>
 </head>
 <body>
@@ -453,6 +497,12 @@
       </div>
     </div>
     <div class="seats" id="seats"></div>
+    <div class="count-row">
+      <span>View:</span>
+      <div class="toggle" id="viewToggle">
+        <button data-view="3d" class="on">🎥 3D First-Person</button><button data-view="2d">🗺️ 2D Board</button>
+      </div>
+    </div>
     <div class="btn-row">
       <button class="btn" id="toHatch">Choose Your Eggs 🥚</button>
       <button class="btn alt small" id="howToBtn">📖 How to Play</button>
@@ -472,7 +522,8 @@
 
   <!-- GAME -->
   <section id="game" class="hidden">
-    <div class="turnbar"><span id="turnText">…</span><button class="help-btn" id="helpBtn">❓ Rules</button></div>
+    <div id="world3d"></div>
+    <div class="turnbar"><button class="help-btn view-btn" id="viewBtn">🗺️ 2D</button><span id="turnText">…</span><button class="help-btn" id="helpBtn">❓ Rules</button></div>
     <div class="track" id="track"></div>
     <div class="players" id="players"></div>
     <div class="stage">
@@ -861,6 +912,48 @@
   function showScreen(name){
     ["setup","hatch","game","end"].forEach(s=>$(s).classList.add("hidden"));
     $(name).classList.remove("hidden");
+    if(world) world.setActive(name==="game" && view3d);
+  }
+
+  // ---------------- 3D FIRST-PERSON VIEW ----------------
+  // The 3D world is a pure view layer (world3d.js): this engine stays the single
+  // source of truth and just reports state (world.sync) and moments (fx).
+  let viewPref = "3d";
+  try{ const v=localStorage.getItem("ef-view"); if(v==="2d"||v==="3d") viewPref=v; }catch(e){}
+  let view3d = false, world = null, worldLoading = null;
+  function webglOK(){ try{ const c=document.createElement("canvas"); return !!(window.WebGLRenderingContext && (c.getContext("webgl2")||c.getContext("webgl"))); }catch(e){ return false; } }
+  function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error("could not load "+src)); document.head.appendChild(s); }); }
+  function ensureWorld(){
+    if(world) return Promise.resolve(world);
+    if(!worldLoading) worldLoading=(async()=>{
+      if(!window.THREE) await loadScript("vendor/three.min.js");
+      if(!window.EFWorld) await loadScript("world3d.js");
+      world=window.EFWorld.create($("world3d"),{ board:BOARD, finish:FINISH, habitatFor, tileIcon:TILE_ICON });
+      return world;
+    })().catch(err=>{ worldLoading=null; throw err; });
+    return worldLoading;
+  }
+  function worldState(){
+    return { active:turnIdx, players:players.map(p=>({ idx:p.idx, name:p.name, color:p.color, arch:p.dino?p.dino.arch:"apex",
+      pos:p.pos, hp:p.hp, maxHp:p.maxHp, finished:p.finished, extinct:p.extinct })) };
+  }
+  function syncWorld(snap){ if(view3d && world){ try{ world.sync(worldState(),snap); }catch(e){ console.warn("[3d] sync",e); } } }
+  function fx(name,data){ if(view3d && world){ try{ world.fx(name,data||{}); }catch(e){ console.warn("[3d] fx",e); } } }
+  async function setView(mode, remember){
+    if(remember){ viewPref=mode; try{ localStorage.setItem("ef-view",mode); }catch(e){} }
+    if(mode==="3d"){
+      if(!webglOK()){ log("🎥 3D view isn't supported on this device — using the 2D board.","bad"); return setView("2d"); }
+      try{ await ensureWorld(); }catch(e){ console.warn(e); log("🎥 Couldn't start the 3D view — using the 2D board.","bad"); return setView("2d"); }
+      view3d=true; $("game").classList.add("in3d");
+      world.setActive(!$("game").classList.contains("hidden"));
+      world.resize(); syncWorld(true);
+    } else {
+      view3d=false; $("game").classList.remove("in3d");
+      if(world) world.setActive(false);
+      refresh(); scrollToTile(players[turnIdx]?players[turnIdx].pos:0);
+    }
+    $("viewBtn").textContent = view3d ? "🗺️ 2D" : "🎥 3D";
+    $("viewBtn").title = view3d ? "Switch to the 2D board" : "Switch to the 3D first-person view";
   }
 
   // ---------------- MODAL / HOW TO PLAY ----------------
@@ -887,6 +980,9 @@
     '</ul><h3>🥚 Defeat &amp; Respawn</h3><ul>'+
       '<li>If your dino runs out of hearts, it\'s not the end — a <b>new mystery egg</b> hatches for you at the halfway point back to the start.</li>'+
       '<li>Your new dino is a fresh species with its own hearts and (for humans) a fresh 3-of-4 power draft.</li>'+
+    '</ul><h3>🎥 2D Board or 3D First-Person</h3><ul>'+
+      '<li>In <b>3D</b> you walk the trail through your dino\'s own eyes — a giant Brachiosaurus sees from way up high, a little Velociraptor from down low.</li>'+
+      '<li><b>Drag</b> to look around. Switch between 3D and the 2D board anytime with the button in the top-left corner.</li>'+
     '</ul><h3>🏆 Winning</h3><ul>'+
       '<li>Reaching the nesting ground makes you a finisher, ranked by the <b>order you arrived</b> — but play continues so everyone gets a real shot at <b>2nd and 3rd place</b>.</li>'+
       '<li>Once only one player is left racing, their last-place finish is obvious and the game ends.</li>'+
@@ -928,6 +1024,14 @@
       b.classList.add("on"); playerCount=parseInt(b.dataset.n,10); renderSeats();
     });
   });
+  function renderViewToggle(){
+    $("viewToggle").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.view===viewPref));
+  }
+  $("viewToggle").querySelectorAll("button").forEach(b=>{
+    b.addEventListener("click",()=>{ viewPref=b.dataset.view; try{ localStorage.setItem("ef-view",viewPref); }catch(e){} renderViewToggle(); });
+  });
+  renderViewToggle();
+  $("viewBtn").addEventListener("click",()=>setView(view3d?"2d":"3d",true));
 
   // ---------------- HATCH + DRAFT ----------------
   function buildPlayers(){
@@ -1093,7 +1197,7 @@
       wrap.appendChild(c);
     });
   }
-  function refresh(){ renderTrack(); renderPlayers(); }
+  function refresh(){ renderTrack(); renderPlayers(); syncWorld(); }
   function scrollToTile(i){ const tiles=$("track").children; if(tiles[i]) tiles[i].scrollIntoView({inline:"center",block:"nearest"}); }
 
   // ---------------- LOG / PROMPT ----------------
@@ -1170,7 +1274,7 @@
 
     // move token
     const dest=Math.min(FINISH,p.pos+distance);
-    while(p.pos<dest){ p.pos++; refresh(); scrollToTile(p.pos); await delay(120); }
+    while(p.pos<dest){ p.pos++; refresh(); scrollToTile(p.pos); await delay(view3d?330:120); }   // slower in 3D so you can see the walk
     await delay(200);
 
     if(p.pos===FINISH){
@@ -1178,9 +1282,11 @@
       // finished this same lap (a genuine tie), which needs a tiebreaker for placement.
       p.finished=true; p.finishOrder=++finishCounter; p.finishLap=currentLap;
       log('🏆 <span class="hl">'+p.name+'</span> reaches the nesting ground!','good');
+      refresh(); fx("nest",{idx:p.idx});
       const tieRival=players.find(q=>q!==p && q.finished && q.finishLap===currentLap);
       if(tieRival){
         log('⚡ <span class="hl">'+p.name+'</span> and <span class="hl">'+tieRival.name+'</span> arrived together — a tiebreaker is needed!');
+        fx("tiebreak",{other:tieRival.idx});
         setEvent('<div class="ev-icon">🏆⚡</div><div class="ev-name">Photo Finish!</div><div class="ev-desc">Both dinos reached the nest the same turn — fight it out for placement!</div>');
         await delay(600);
         const loser=await nestTiebreakFight(p,tieRival);
@@ -1204,10 +1310,12 @@
       const spot=p.pos, onOasis=BOARD[spot]==="bonus";
       log('⚔️ <span class="hl">'+p.name+'</span> bumps into <span class="hl">'+foe.name+'</span> — they fight!'+(onOasis?' <span class="note">(at a lush oasis!)</span>':''));
       setEvent('<div class="ev-icon">'+p.dino.emoji+'⚔️'+foe.dino.emoji+'</div><div class="ev-name">Territory Dispute!</div><div class="ev-desc">Two dinos on the same ground'+(onOasis?' — the oasis awaits the victor!':'')+'</div>');
+      fx("clash",{attacker:p.idx, defender:foe.idx});
       await delay(500);
       const result=await playerFight(p,foe);
       if(onOasis && result.loser===foe && p.pos===spot && !p.extinct){
         log('✨ <span class="hl">'+p.name+'</span> claims the oasis and gets to rest!','good');
+        fx("oasis");
         await applyOasisBonus(p);
         await delay(700);
       }
@@ -1235,6 +1343,7 @@
     setEvent('<div class="ev-icon">'+adv.icon+'</div><div class="ev-name">'+adv.name+'</div><div class="ev-desc">'+adv.desc+'</div><div class="ev-target">Roll '+adv.target+'+ to survive · miss = '+miss+'</div>');
     clearDice();
     log('<span class="hl">'+p.name+'</span> faces '+adv.icon+' <b>'+adv.name+'</b> (needs '+adv.target+'+, miss = '+miss+').');
+    fx("hazard",{name:adv.name, kind:adv.kind});
     let bonus=0, dodged=false;
 
     // hazard power — at most one, and only if this turn's single power is unspent
@@ -1258,7 +1367,7 @@
       }
     }
     refresh();
-    if(dodged){ setEvent('<div class="ev-icon">'+adv.icon+'➡️💨</div><div class="ev-name">Dodged!</div><div class="ev-desc">'+p.name+' avoids it completely.</div>'); await delay(800); return; }
+    if(dodged){ setEvent('<div class="ev-icon">'+adv.icon+'➡️💨</div><div class="ev-name">Dodged!</div><div class="ev-desc">'+p.name+' avoids it completely.</div>'); fx("hazardResult",{dodged:true}); await delay(800); return; }
 
     if(p.type==="human") await ask("🎲 Roll to survive the "+adv.name+"!",[{label:"🎲 Roll the Dice",value:"go",cls:"gold"}]);
     else { setStatus(p.name+" braces for impact…"); await delay(400); }
@@ -1267,7 +1376,9 @@
     if(total>=adv.target){
       setEvent('<div class="ev-icon">'+adv.icon+'</div><div class="ev-name" style="color:#9be29b">Survived!</div><div class="ev-desc">Rolled '+r+(bonus?" +"+bonus+" = "+total:"")+' vs '+adv.target+'.</div>');
       log('<span class="hl">'+p.name+'</span> survives '+adv.name+'! ('+total+' vs '+adv.target+')','good');
+      fx("hazardResult",{ok:true});
     } else if(adv.kind==="wash"){
+      fx("hazardResult",{ok:false, kind:"wash"});
       const from=p.pos; p.pos=Math.max(0,p.pos-WASHBACK); const moved=from-p.pos;
       setEvent('<div class="ev-icon">'+adv.icon+'↩️</div><div class="ev-name" style="color:#ffd27a">Washed back!</div><div class="ev-desc">Rolled '+r+(bonus?" +"+bonus+" = "+total:"")+' vs '+adv.target+'. Pushed back '+moved+' space'+(moved===1?"":"s")+'.</div>');
       log('↩️ <span class="hl">'+p.name+'</span> is pushed back by '+adv.name+' to space '+p.pos+'.','bad');
@@ -1276,6 +1387,7 @@
       p.hp--;
       setEvent('<div class="ev-icon">'+adv.icon+'💥</div><div class="ev-name" style="color:#ff9b8c">Hit!</div><div class="ev-desc">Rolled '+r+(bonus?" +"+bonus+" = "+total:"")+' vs '+adv.target+'. Lose 1 ❤️</div>');
       log('<span class="hl">'+p.name+'</span> is hurt by '+adv.name+'! '+heartStr(Math.max(0,p.hp),p.maxHp),'bad');
+      fx("hazardResult",{ok:false, kind:"hurt"});
       await checkExtinct(p);
     }
     refresh(); await delay(850);
@@ -1347,9 +1459,9 @@
     log("&nbsp;&nbsp;"+attacker.name+" "+aTotal+"  vs  "+defender.name+" "+dTotal);
     await delay(500);
     let loser=null, died=false;
-    if(aTotal>dTotal){ defender.hp--; loser=defender; log('<span class="hl">'+attacker.name+'</span> wins the clash! '+defender.name+' −1 ❤️','good'); died=await checkExtinct(defender); }
-    else if(dTotal>aTotal){ attacker.hp--; loser=attacker; log('<span class="hl">'+defender.name+'</span> holds firm! '+attacker.name+' −1 ❤️','bad'); died=await checkExtinct(attacker); }
-    else log("A draw — both dinos back off unharmed.");
+    if(aTotal>dTotal){ defender.hp--; loser=defender; log('<span class="hl">'+attacker.name+'</span> wins the clash! '+defender.name+' −1 ❤️','good'); fx("clashResult",{loser:defender.idx, other:attacker.idx}); died=await checkExtinct(defender); }
+    else if(dTotal>aTotal){ attacker.hp--; loser=attacker; log('<span class="hl">'+defender.name+'</span> holds firm! '+attacker.name+' −1 ❤️','bad'); fx("clashResult",{loser:attacker.idx, other:defender.idx}); died=await checkExtinct(attacker); }
+    else { log("A draw — both dinos back off unharmed."); fx("clashResult",{loser:null}); }
     refresh(); await delay(750);
     if(loser && !died) await retreat(loser);
     return { loser, died };
@@ -1373,9 +1485,9 @@
       setEvent(fightCardHtml(a,b,String(aTotal),String(bTotal),"VS ⚡"));
       log("&nbsp;&nbsp;Round "+round+": "+a.name+" "+aTotal+"  vs  "+b.name+" "+bTotal);
       await delay(500);
-      if(aTotal>bTotal){ b.hp--; log('<span class="hl">'+a.name+'</span> lands a blow! '+b.name+' −1 ❤️','good'); }
-      else if(bTotal>aTotal){ a.hp--; log('<span class="hl">'+b.name+'</span> lands a blow! '+a.name+' −1 ❤️','bad'); }
-      else log("A draw this round — they clash again!");
+      if(aTotal>bTotal){ b.hp--; log('<span class="hl">'+a.name+'</span> lands a blow! '+b.name+' −1 ❤️','good'); fx("clashResult",{loser:b.idx, other:a.idx}); }
+      else if(bTotal>aTotal){ a.hp--; log('<span class="hl">'+b.name+'</span> lands a blow! '+a.name+' −1 ❤️','bad'); fx("clashResult",{loser:a.idx, other:b.idx}); }
+      else { log("A draw this round — they clash again!"); fx("clashResult",{loser:null}); }
       refresh(); await delay(600);
     }
     a.hp=Math.max(0,a.hp); b.hp=Math.max(0,b.hp);
@@ -1393,7 +1505,8 @@
     const fact=t.facts[Math.floor(rnd()*t.facts.length)]; // one of its 3 facts
     setEvent('<div class="ev-icon">⚔️ '+t.emoji+'</div><div class="ev-name">A wild '+t.name+' appears!</div><div class="ev-desc">💡 '+fact+'</div>');
     log('⚔️ <span class="hl">'+p.name+'</span> meets a wild '+t.name+'! <span class=note>'+fact+'</span>');
-    await delay(750);
+    fx("wild",{arch:t.arch, name:t.name});
+    await delay(view3d?1300:750);   // give the 3D dino time to leap in and roar
 
     // Defend (safe) OR Attack (brave: win heals, lose knocks you back). One power, this turn.
     let bonus=0, intim=0, aggressive=false;
@@ -1429,6 +1542,7 @@
     setEvent(fightCardHtml(p,wild,String(pTotal),String(wTotal),"VS"));
     log("&nbsp;&nbsp;"+p.name+" "+pTotal+"  vs  wild "+t.name+" "+wTotal);
     await delay(500);
+    fx("wildResult",{win:pTotal>=wTotal, aggressive});
     if(pTotal>=wTotal){
       if(aggressive){
         if(p.hp<p.maxHp){ p.hp++; log('<span class="hl">'+p.name+'</span> overpowers the wild '+t.name+' and feasts — heal 1 ❤️! '+heartStr(p.hp,p.maxHp),'good'); }
@@ -1458,6 +1572,7 @@
   }
   async function bonusPhase(p){
     setEvent('<div class="ev-icon">✨</div><div class="ev-name">Lush Oasis</div><div class="ev-desc">A rare, safe haven to recover.</div>');
+    fx("oasis");
     await delay(600);
     await applyOasisBonus(p);
     await delay(700);
@@ -1529,8 +1644,8 @@
       return { ...a, charges:ch, maxCharges:ch };
     });
     log('🥚 <span class="hl">'+p.name+'</span> finds a new egg! A <b>'+newDino.name+'</b> hatches at space '+newPos+'.','good');
-    refresh(); scrollToTile(newPos);
-    await delay(700);
+    refresh(); scrollToTile(newPos); fx("respawn",{idx:p.idx});
+    await delay(view3d?1500:700);   // in 3D the camera glides back to the new egg first
     if(p.type==="human") p.abilities=await draftPowersInModal(p, freshAll);
     else p.abilities=pick3(freshAll);
     refresh(); await delay(400);
@@ -1540,6 +1655,7 @@
     if(p.hp<=0 && !p.extinct){
       p.hp=0; p.extinct=true;
       log('💀 <span class="hl">'+p.name+'</span> the '+p.dino.name+' has gone EXTINCT!','bad');
+      fx("extinct",{idx:p.idx});
       refresh(); await delay(900);
       await respawnPlayer(p);
       return true;
@@ -1621,13 +1737,15 @@
   defaultSeats(); renderSeats();
 
   $("toHatch").addEventListener("click",()=>{ buildPlayers(); showScreen("hatch"); runHatch(); });
-  $("startGame").addEventListener("click",()=>{
+  $("startGame").addEventListener("click",async ()=>{
     winner=null; finishCounter=0;
     turnIdx=Math.floor(rnd()*players.length); // random first player
     showScreen("game");
     $("log").innerHTML="";
     log("Extinction Fighters — the battle for survival begins! 🦴");
     log('🎲 <span class="hl">'+players[turnIdx].name+'</span> is chosen to go first!','good');
+    if(world) world.reset();
+    await setView(viewPref);
     refresh();
     gameLoop();
   });

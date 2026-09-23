@@ -1,7 +1,9 @@
-/* Extinction Fighters — minimal offline service worker (app-shell cache).
-   Bump CACHE when you change any cached asset to force an update. */
-const CACHE = "extinction-fighters-v1";
-const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
+/* Extinction Fighters — offline service worker.
+   Network-first: when online you always get the latest game; when offline
+   the cached copy is used. Bump CACHE when the precache list changes. */
+const CACHE = "extinction-fighters-v2";
+const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg",
+                "./world3d.js", "./vendor/three.min.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
@@ -15,19 +17,15 @@ self.addEventListener("activate", (e) => {
   );
 });
 
-// Cache-first for GET; fall back to the cached page when offline.
+// Network-first for GET; refresh the cache with what we fetch, fall back to cache offline.
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   e.respondWith(
-    caches.match(e.request).then((hit) =>
-      hit ||
-      fetch(e.request)
-        .then((resp) => {
-          const copy = resp.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, copy));
-          return resp;
-        })
-        .catch(() => caches.match("./index.html"))
-    )
+    fetch(e.request)
+      .then((resp) => {
+        if (resp && resp.ok) { const copy = resp.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
+        return resp;
+      })
+      .catch(() => caches.match(e.request).then((hit) => hit || caches.match("./index.html")))
   );
 });
