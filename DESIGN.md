@@ -1,4 +1,25 @@
-# Extinction Fighters — Design Refresh Guide & Implementation Spec
+# Extinction Fighters — Design Guide
+
+> **Current look (2026-09): "Animated film".** The whole UI now matches the 3D view's
+> Spider-Verse / anime style. It lives in the **ANIMATED-FILM THEME** block at the end of the
+> `<style>` in `index.html` (scoped under `#app`, appended after the older rules), plus the
+> painted `.backdrop` SVG at the top of `<body>`.
+>
+> - **Ink & paper:** `--ink` #15121a outlines (3px), hard offset shadows (`--pop`), cream caption
+>   boxes (`--cream`, `--paper-c`) with halftone dots (`--dots`), dark `--night` panel for the event stage.
+> - **Player colour** is passed as `--pc` on seats, egg cards and player cards → a thick left stripe
+>   or header band, like the 3D name labels. Names are always ink on cream for contrast.
+> - **Type:** `--comic` (heavy italic, uppercase) for headings/buttons; titles use cyan/magenta
+>   misregistration text-shadows. Buttons and caption tags are skewed −7° and press in on click.
+> - **Accents:** `--sun` yellow (selected / primary), `--hot` pink (active shadows, badges), `--cyan`.
+> - **Board tiles** are mini painted landscapes (`sceneBg()` in the HABITAT table: sky over a hard horizon).
+> - Emoji and silhouettes get an ink outline via stacked `drop-shadow` filters.
+>
+> The spec below documents the earlier "storybook jungle" refresh (A0–A6), which the theme block overrides.
+
+---
+
+## Earlier refresh: Design Refresh Guide & Implementation Spec
 
 **Status:** ready to implement · **Target file:** `index.html` (this folder)
 **Executor notes:** Follow actions A0–A6 **in order**. Every action contains the complete code to paste — no improvisation needed or wanted. If an anchor string cannot be found, STOP and report; do not guess.
