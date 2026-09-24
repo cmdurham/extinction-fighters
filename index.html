@@ -927,14 +927,16 @@
     if(world) return Promise.resolve(world);
     if(!worldLoading) worldLoading=(async()=>{
       if(!window.THREE) await loadScript("vendor/three.min.js");
-      if(!window.EFWorld) await loadScript("world3d.js");
+      if(!window.EFInk) await loadScript("3d/ink.js");
+      if(!window.EFDinos) await loadScript("3d/dinos.js");
+      if(!window.EFWorld) await loadScript("3d/world.js");
       world=window.EFWorld.create($("world3d"),{ board:BOARD, finish:FINISH, habitatFor, tileIcon:TILE_ICON });
       return world;
     })().catch(err=>{ worldLoading=null; throw err; });
     return worldLoading;
   }
   function worldState(){
-    return { active:turnIdx, players:players.map(p=>({ idx:p.idx, name:p.name, color:p.color, arch:p.dino?p.dino.arch:"apex",
+    return { active:turnIdx, players:players.map(p=>({ idx:p.idx, name:p.name, color:p.color, arch:p.dino?p.dino.arch:"apex", species:p.dino?p.dino.name:"",
       pos:p.pos, hp:p.hp, maxHp:p.maxHp, finished:p.finished, extinct:p.extinct })) };
   }
   function syncWorld(snap){ if(view3d && world){ try{ world.sync(worldState(),snap); }catch(e){ console.warn("[3d] sync",e); } } }

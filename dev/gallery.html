@@ -1,0 +1,49 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Dino gallery (dev)</title>
+<style>html,body{margin:0;height:100%;background:#9cc;overflow:hidden;font:12px sans-serif}#c{width:100%;height:100%;display:block}
+#ui{position:fixed;left:8px;top:8px;background:rgba(0,0,0,.6);color:#fff;padding:6px 8px;border-radius:6px}</style></head>
+<body><canvas id="c"></canvas><div id="ui">drag = orbit · wheel = zoom · <span id="info"></span></div>
+<script src="../vendor/three.min.js"></script>
+<script>
+(async()=>{ for(const m of ["ink", "dinos"]) await new Promise((res,rej)=>{ const s=document.createElement("script"); s.src="../3d/"+m+".js?t="+Date.now(); s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+const T=THREE, cv=document.getElementById("c");
+const renderer=new T.WebGLRenderer({canvas:cv,antialias:false}); renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=T.PCFShadowMap; renderer.shadowMap.autoUpdate=false;
+renderer.setClearColor(0xcfe6ea);
+const scene=new T.Scene(); scene.fog=new T.Fog(0xcfe6ea,60,220);
+const cam=new T.PerspectiveCamera(45,1,0.15,900);
+scene.add(new T.HemisphereLight(0xcfe6ff,0x5a6a44,0.42));
+const sun=new T.DirectionalLight(0xfff0d0,0.62); sun.position.set(30,50,25); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
+Object.assign(sun.shadow.camera,{left:-60,right:60,top:60,bottom:-60,near:1,far:200}); scene.add(sun);
+const ground=new T.Mesh(new T.PlaneGeometry(400,400),EFInk.toon({color:0x7aa35a,paint:true})); ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
+const names=Object.keys(EFDinos.SPECIES), cols=10, dinos=[];
+const accents=["#e8b93e","#4f8cff","#5ac85a","#ff6fb1"];
+const params=new URLSearchParams(location.search), only=params.get("s"), bf=params.get("b"), gap=+(params.get("gap")||9);
+const pickN=names.filter(n=>(!only||n.toLowerCase().includes(only.toLowerCase()))&&(!bf||EFDinos.SPECIES[n].b===bf));
+pickN.forEach((n,i)=>{
+  const e=EFDinos.build(null,n,accents[i%4],{wild:params.has("wild")});
+  const g=new T.Group(); g.add(e.group); const nn=Math.min(cols,pickN.length); g.position.set((i%cols-(nn-1)/2)*gap,0,-Math.floor(i/cols)*11); g.rotation.y=0.6; scene.add(g);
+  if(e.flyer){} dinos.push({e,g,n});
+});
+document.getElementById("info").textContent=dinos.length+" species";
+const pipe=EFInk.Pipeline(renderer,scene,cam);
+let yaw=0.5,pitch=0.35,dist=only?14:70,tgt=new T.Vector3(0,2,only?0:-20);
+function resize(){ const w=innerWidth,h=innerHeight; renderer.setSize(w,h,false); cam.aspect=w/h; cam.updateProjectionMatrix(); pipe.setSize(w,h,renderer.getPixelRatio()); }
+addEventListener("resize",resize); resize();
+let drag=null; cv.onpointerdown=e=>drag={x:e.clientX,y:e.clientY}; onpointerup=()=>drag=null;
+onpointermove=e=>{ if(!drag) return; yaw-=(e.clientX-drag.x)*0.005; pitch=Math.max(0.02,Math.min(1.4,pitch+(e.clientY-drag.y)*0.004)); drag={x:e.clientX,y:e.clientY}; };
+cv.onwheel=e=>{ dist=Math.max(4,Math.min(200,dist*(1+e.deltaY*0.001))); };
+window.show=(want,gap,rowlen,wild)=>{ scene.children.filter(c=>c.type==="Group").forEach(c=>scene.remove(c)); dinos.length=0;
+  want.forEach((n,i)=>{ const e=EFDinos.build(null,n,accents[i%4],{wild}); const g=new T.Group(); g.add(e.group); g.position.set((i%rowlen-(Math.min(rowlen,want.length)-1)/2)*gap,0,-Math.floor(i/rowlen)*gap*1.3); g.rotation.y=Math.PI/2; scene.add(g); dinos.push({e,g,n}); }); };
+window.view=(y,p,d,x,yy,z)=>{ yaw=y; pitch=p; dist=d; if(x!=null) tgt.set(x,yy,z); };
+let t0=performance.now(), acc=0, walk=params.has("walk")?1:0;
+function frame(now){
+  requestAnimationFrame(frame);
+  const t=(now-t0)/1000; EFInk.SH.time.value=t; pipe.U.time.value=t;
+  acc+=1/60; if(acc>=1/12){ acc=0; dinos.forEach((d,i)=>EFDinos.pose(d.e.rig,t+i,walk,{jaw:params.has("roar")?0.5+0.5*Math.sin(t*2):0})); }
+  cam.position.set(tgt.x+Math.sin(yaw)*Math.cos(pitch)*dist, tgt.y+Math.sin(pitch)*dist, tgt.z+Math.cos(yaw)*Math.cos(pitch)*dist); cam.lookAt(tgt);
+  pipe.render();
+}
+requestAnimationFrame(frame);
+})();
+</script></body></html>

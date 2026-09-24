@@ -12,13 +12,16 @@ Hatch one of 50 real dinosaur, pterosaur, and marine reptile species from a myst
 - Draft-3-of-4 power system with a one-power-per-turn limit
 - Habitat-themed board with hazard, battle, and oasis spaces
 - 2–4 players, any mix of human or CPU
-- **3D first-person mode** (default): walk the trail through each habitat at your dino's own eye height, with animated hazards, wild dinos and rival clashes — switch to the classic 2D board any time with the 🗺️/🎥 button
+- **3D first-person mode** (default): walk the trail through each habitat at your dino's own eye height — switch to the classic 2D board any time with the 🗺️/🎥 button. Styled like an animated film:
+  - cel-shaded, ink-outlined world with Spider-Verse print touches (halftone shadows, colour misregistration, hand-drawn grain, animation "on twos") and anime impact frames, speed lines and comic-book sound effects
+  - all 50 species sculpted procedurally with skeletons, walk cycles and species details (sails, frills, plates, feathers, wings, flippers), wearing each player's colour
+  - painterly terrain, cel-shaded skies and layered background ridges for eight habitats, plus a volcano, ocean and the bone-arch nest at the finish
 - A random fact about each species on hatch and on every wild encounter
 - Fully offline-capable (installable as a PWA, works with no network connection)
 
 ## Tech
 
-No build step and no external requests — everything is served from this repo and runs entirely in the browser. The game engine and 2D board live in `index.html`; the 3D world is `world3d.js`, built on a vendored copy of [three.js](https://threejs.org/) r149 (`vendor/three.min.js`, MIT — see `vendor/THREE-LICENSE.txt`), loaded only when 3D is used. Browsers without WebGL fall back to 2D automatically. See [`DESIGN.md`](DESIGN.md) for the visual design spec.
+No build step and no external requests — everything is served from this repo and runs entirely in the browser. The game engine and 2D board live in `index.html`; the 3D view lives in `3d/` (`ink.js` — cel shading and the ink/print post-process · `dinos.js` — procedural creatures · `world.js` — the world, camera and effects), built on a vendored copy of [three.js](https://threejs.org/) r149 (`vendor/three.min.js`, MIT — see `vendor/THREE-LICENSE.txt`) and loaded only when 3D is used. Browsers without WebGL fall back to 2D automatically, and the renderer lowers its resolution on slower devices. `dev/gallery.html` (all 50 species) and `dev/tour.html` (fly the camera to any space, fire any effect) are handy for working on the visuals. See [`DESIGN.md`](DESIGN.md) for the visual design spec.
 
 ## Local development
 

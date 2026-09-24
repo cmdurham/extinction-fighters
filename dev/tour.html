@@ -1,0 +1,27 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>World tour (dev)</title>
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden;font:12px sans-serif}#w{position:fixed;inset:0}
+.world3d-canvas{display:block}.world3d-flash{position:absolute;inset:0;pointer-events:none;opacity:0}.world3d-hint{display:none}
+#ui{position:fixed;left:8px;top:8px;background:rgba(0,0,0,.6);color:#fff;padding:6px 8px;border-radius:6px;z-index:9}</style></head>
+<body><div id="w"></div><div id="ui">go(n) · fx(name,data) · species(idx,name)</div>
+<script src="../vendor/three.min.js"></script>
+<script>
+(async()=>{ for(const m of ["ink", "dinos", "world"]) await new Promise((res,rej)=>{ const s=document.createElement("script"); s.src="../3d/"+m+".js?t="+Date.now(); s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+const FIN=31, bands=["forest","swamp","plains","desert","volcano","mountains","coast","tundra"];
+const habitatFor=i=>i===0?"forest":i===FIN?"nest":bands[Math.floor(i/4)%bands.length];
+const BOARD=Array.from({length:FIN+1},(_,i)=>i===0?"start":i===FIN?"finish":[7,19,28].includes(i)?"bonus":["adversity","fight","adversity","empty"][i%4]);
+const TILE_ICON={start:"🥚",finish:"🏆",adversity:"⚠️",fight:"⚔️",bonus:"✨",empty:""};
+const world=EFWorld.create(document.getElementById("w"),{board:BOARD,finish:FIN,habitatFor,tileIcon:TILE_ICON});
+const params=new URLSearchParams(location.search);
+const state={active:0,players:[
+  {idx:0,name:"You",color:"#e8b93e",arch:params.get("arch")||"apex",species:params.get("me")||"Tyrannosaurus rex",pos:+(params.get("pos")||0),hp:4,maxHp:4},
+  {idx:1,name:"Dino 2",color:"#4f8cff",arch:"horned",species:"Triceratops",pos:+(params.get("pos")||0)+1,hp:3,maxHp:4},
+  {idx:2,name:"Dino 3",color:"#5ac85a",arch:"raptor",species:"Velociraptor",pos:+(params.get("pos")||0)+2,hp:3,maxHp:3},
+  {idx:3,name:"Dino 4",color:"#ff6fb1",arch:"giant",species:"Brachiosaurus",pos:+(params.get("pos")||0)+3,hp:4,maxHp:4}]};
+world.setActive(true); world.sync(state,true);
+window.go=(n,snap)=>{ state.players[0].pos=n; world.sync(state,snap!==false); };
+window.fx=(n,d)=>world.fx(n,d||{});
+window.species=(i,name,arch)=>{ state.players[i].species=name; if(arch) state.players[i].arch=arch; world.sync(state,true); };
+window.place=(i,pos)=>{ state.players[i].pos=pos; world.sync(state,false); };
+})();
+</script></body></html>
