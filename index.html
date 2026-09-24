@@ -384,13 +384,13 @@
   .pos-badge{ margin-left:auto; flex:0 0 auto; font-size:11px; font-weight:800; color:var(--gold);
     background:rgba(0,0,0,.32); padding:3px 8px; border-radius:10px; white-space:nowrap; box-shadow:inset 0 1px 2px rgba(0,0,0,.3); }
 
-  /* ---- view toggle (2D board / 3D first-person) ---- */
+  /* ---- view toggle (2D board / 3D adventure) ---- */
   .help-btn:hover{ transform:translateY(-50%) scale(1.06); }   /* keep vertical centering on hover */
   .view-btn{ left:8px; right:auto; }
   .turnbar{ padding-left:64px; padding-right:84px; }
   #world3d{ display:none; }
 
-  /* ---- 3D first-person mode: the existing UI becomes a heads-up display ---- */
+  /* ---- 3D mode: the existing UI becomes a heads-up display ---- */
   #game.in3d{ position:fixed; inset:0; z-index:5; display:block; gap:0; background:#0c1811; }
   #game.in3d #world3d{ display:block; position:absolute; inset:0; overflow:hidden; }
   .world3d-canvas{ display:block; touch-action:none; cursor:grab; }
@@ -427,6 +427,25 @@
     #game.in3d .pcard .charges{ display:none; }
     .world3d-hint{ top:190px; }
   }
+
+  /* ---- turn announcement: a comic title-card band sweeping across the screen ---- */
+  .turn-banner{ position:fixed; left:0; right:0; top:36%; height:0; z-index:40; pointer-events:none; }
+  .turn-banner .tb-band{ position:absolute; left:-12%; right:-12%; top:-70px; height:142px; transform-origin:left center;
+    background:radial-gradient(circle,rgba(0,0,0,.2) 26%,transparent 29%) 0 0/10px 10px, var(--pc);
+    border-top:6px solid #15121a; border-bottom:6px solid #15121a; box-shadow:0 12px 0 rgba(0,0,0,.22);
+    animation:tbBand 1.9s cubic-bezier(.2,.9,.3,1) forwards; }
+  .turn-banner .tb-text{ position:absolute; left:0; right:0; top:-56px; text-align:center; animation:tbText 1.9s cubic-bezier(.2,.9,.3,1) forwards; }
+  .tb-kicker{ font:italic 900 15px/1 "Arial Black","Helvetica Neue",system-ui,sans-serif; letter-spacing:.24em; text-transform:uppercase; color:#15121a; margin-bottom:6px; }
+  .tb-name{ display:inline-flex; align-items:center; gap:10px; font:italic 900 clamp(26px,7vw,48px)/1.05 "Arial Black","Helvetica Neue",Impact,system-ui,sans-serif;
+    text-transform:uppercase; white-space:nowrap; color:#fff6c9; -webkit-text-stroke:3px #15121a; paint-order:stroke fill; text-shadow:4px 4px 0 #15121a; }
+  .tb-name svg{ flex:none; filter:drop-shadow(2px 2px 0 rgba(255,255,255,.5)); }
+  .tb-sub{ display:table; margin-left:auto !important; margin-right:auto !important; font:italic 800 14px/1 system-ui,sans-serif; color:#fff6c9; background:#15121a; padding:4px 10px; border-radius:4px; margin-top:4px; }
+  @keyframes tbBand{ 0%{ transform:skewY(-4deg) scaleX(0); } 15%{ transform:skewY(-4deg) scaleX(1); } 80%{ transform:skewY(-4deg) scaleX(1) translateX(0); opacity:1; }
+    100%{ transform:skewY(-4deg) scaleX(1) translateX(115%); opacity:1; } }
+  @keyframes tbText{ 0%{ opacity:0; transform:skewY(-4deg) translateX(-80px); } 17%{ opacity:1; transform:skewY(-4deg) translateX(0); }
+    78%{ opacity:1; transform:skewY(-4deg) translateX(14px); } 100%{ opacity:0; transform:skewY(-4deg) translateX(120px); } }
+  @media (prefers-reduced-motion:reduce){ .turn-banner .tb-band,.turn-banner .tb-text{ animation:tbFade 1.9s ease forwards; } }
+  @keyframes tbFade{ 0%{opacity:0} 12%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
 </style>
 </head>
 <body>
@@ -500,7 +519,7 @@
     <div class="count-row">
       <span>View:</span>
       <div class="toggle" id="viewToggle">
-        <button data-view="3d" class="on">🎥 3D First-Person</button><button data-view="2d">🗺️ 2D Board</button>
+        <button data-view="3d" class="on">🎥 3D Adventure</button><button data-view="2d">🗺️ 2D Board</button>
       </div>
     </div>
     <div class="btn-row">
@@ -955,7 +974,7 @@
       refresh(); scrollToTile(players[turnIdx]?players[turnIdx].pos:0);
     }
     $("viewBtn").textContent = view3d ? "🗺️ 2D" : "🎥 3D";
-    $("viewBtn").title = view3d ? "Switch to the 2D board" : "Switch to the 3D first-person view";
+    $("viewBtn").title = view3d ? "Switch to the 2D board" : "Switch to the 3D view";
   }
 
   // ---------------- MODAL / HOW TO PLAY ----------------
@@ -982,9 +1001,9 @@
     '</ul><h3>🥚 Defeat &amp; Respawn</h3><ul>'+
       '<li>If your dino runs out of hearts, it\'s not the end — a <b>new mystery egg</b> hatches for you at the halfway point back to the start.</li>'+
       '<li>Your new dino is a fresh species with its own hearts and (for humans) a fresh 3-of-4 power draft.</li>'+
-    '</ul><h3>🎥 2D Board or 3D First-Person</h3><ul>'+
-      '<li>In <b>3D</b> you walk the trail through your dino\'s own eyes — a giant Brachiosaurus sees from way up high, a little Velociraptor from down low.</li>'+
-      '<li><b>Drag</b> to look around. Switch between 3D and the 2D board anytime with the button in the top-left corner.</li>'+
+    '</ul><h3>🎥 2D Board or 3D Adventure</h3><ul>'+
+      '<li>In <b>3D</b> the camera follows just behind your dino\'s shoulder as it walks the trail, rolls the dice and faces every danger.</li>'+
+      '<li><b>Drag</b> to swing the camera around your dino. Switch between 3D and the 2D board anytime with the button in the top-left corner.</li>'+
     '</ul><h3>🏆 Winning</h3><ul>'+
       '<li>Reaching the nesting ground makes you a finisher, ranked by the <b>order you arrived</b> — but play continues so everyone gets a real shot at <b>2nd and 3rd place</b>.</li>'+
       '<li>Once only one player is left racing, their last-place finish is obvious and the game ends.</li>'+
@@ -1222,23 +1241,44 @@
       });
     });
   }
-  async function rollDie(){
+  // In 3D the dice are thrown into the world (tumbling, inked toon dice); the engine waits for them to land.
+  async function worldDice(vals,cols){
+    if(!(view3d && world && world.rollDice)) return false;
+    const el=$("dice"); el.classList.add("rolling"); el.textContent="🎲";
+    try{ await world.rollDice(vals,cols); }catch(e){ console.warn("[3d] dice",e); }
+    el.classList.remove("rolling"); return true;
+  }
+  async function rollDie(p){
     const el=$("dice");
+    const v=d6();
+    if(await worldDice([v],[p?p.color:"#fff6c9"])){ el.textContent=DICE[v-1]+" "+v; return v; }
     el.classList.add("rolling");
     for(let i=0;i<10;i++){ el.textContent=DICE[Math.floor(rnd()*6)]; await delay(55); }
     el.classList.remove("rolling");
-    const v=d6(); el.textContent=DICE[v-1]+" "+v; return v;
+    el.textContent=DICE[v-1]+" "+v; return v;
   }
 
   function avail(p,phase){ return p.abilities.filter(a=>a.phase===phase && a.charges>0); }
   function spend(a){ a.charges--; }
 
   // ---------------- TURN ----------------
+  const escHtml=(t)=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  // comic title-card sweep announcing whose turn it is (both views)
+  function announceTurn(p){
+    const old=$("turnBanner"); if(old) old.remove();
+    const b=document.createElement("div"); b.id="turnBanner"; b.className="turn-banner"; b.setAttribute("aria-live","polite");
+    b.style.setProperty("--pc",p.color);
+    b.innerHTML='<div class="tb-band"></div><div class="tb-text"><div class="tb-kicker">'+(p.type==="human"?"Your move!":"Next up")+'</div>'+
+      '<div class="tb-name">'+dinoSvg(p.dino,40,"#15121a")+' '+(/^you$/i.test(p.name.trim())?"Your turn":escHtml(p.name)+'&#8217;s turn')+'</div><div class="tb-sub">'+escHtml(p.dino.name)+'</div></div>';
+    $("game").appendChild(b);
+    setTimeout(()=>b.remove(),2000);
+  }
   async function takeTurn(p){
     turnIdx=p.idx; refresh(); scrollToTile(p.pos);
     turnBudget = { used:false }; // fresh one-power allowance for this turn
     $("turnText").innerHTML='<span class="who" style="background:'+p.color+'">'+dinoSvg(p.dino,18,"#1c2b1c")+' '+p.name+'</span> — '+p.dino.name;
     clearEvent(); clearDice();
+    announceTurn(p); await delay(view3d?1100:700);
 
     // heal phase (counts as this turn's one power)
     const heals=avail(p,"heal");
@@ -1256,7 +1296,7 @@
     // movement roll
     if(p.type==="human") await ask("<b>"+p.name+"</b>, roll the dice to move!",[{label:"🎲 Roll Dice",value:"go",cls:"gold"}]);
     else { setStatus(p.name+" is rolling…"); await delay(450); }
-    let roll=await rollDie();
+    let roll=await rollDie(p);
     log('<span class="hl">'+p.name+'</span> rolls a '+roll+'.');
     let distance=roll;
 
@@ -1373,7 +1413,7 @@
 
     if(p.type==="human") await ask("🎲 Roll to survive the "+adv.name+"!",[{label:"🎲 Roll the Dice",value:"go",cls:"gold"}]);
     else { setStatus(p.name+" braces for impact…"); await delay(400); }
-    const r=await rollDie();
+    const r=await rollDie(p);
     const total=r+bonus;
     if(total>=adv.target){
       setEvent('<div class="ev-icon">'+adv.icon+'</div><div class="ev-name" style="color:#9be29b">Survived!</div><div class="ev-desc">Rolled '+r+(bonus?" +"+bonus+" = "+total:"")+' vs '+adv.target+'.</div>');
@@ -1403,7 +1443,7 @@
       '<div class="side"><div class="e">'+dinoSvg(d.dino,34,d.color||"#c9c9c9")+'</div><div class="n" style="color:'+(d.color||"#bbb")+'">'+d.name+'</div><div class="r">'+dr+'</div><div class="ev-desc">'+heartStr(d.hp,d.maxHp)+'</div></div>'+
     '</div>';
   }
-  async function diceFlourish(){ const el=$("dice"); el.classList.add("rolling"); for(let i=0;i<8;i++){ el.textContent=DICE[Math.floor(rnd()*6)]+" ⚔️ "+DICE[Math.floor(rnd()*6)]; await delay(60); } el.classList.remove("rolling"); }
+  async function diceFlourish(vals,cols){ if(vals && await worldDice(vals,cols)) return; const el=$("dice"); el.classList.add("rolling"); for(let i=0;i<8;i++){ el.textContent=DICE[Math.floor(rnd()*6)]+" ⚔️ "+DICE[Math.floor(rnd()*6)]; await delay(60); } el.classList.remove("rolling"); }
 
   // which fight powers may be used in a given context:
   //  attackPlayer = you landed on a rival (aggressor) -> attack powers
@@ -1456,7 +1496,7 @@
     if(attacker.type==="human"||defender.type==="human") await ask("🎲 Roll for the clash!",[{label:"🎲 Roll the Dice",value:"go",cls:"gold"}]);
     const ar=d6(), dr=d6();
     const aTotal=ar+atk.bonus-def.intim, dTotal=dr+def.bonus-atk.intim;
-    await diceFlourish(); $("dice").textContent=ar+" ⚔️ "+dr;
+    await diceFlourish([ar,dr],[attacker.color,defender.color]); $("dice").textContent=ar+" ⚔️ "+dr;
     setEvent(fightCardHtml(attacker,defender,String(aTotal),String(dTotal),"VS"));
     log("&nbsp;&nbsp;"+attacker.name+" "+aTotal+"  vs  "+defender.name+" "+dTotal);
     await delay(500);
@@ -1483,7 +1523,7 @@
       if(a.type==="human"||b.type==="human") await ask("🎲 Roll for the tiebreaker!",[{label:"🎲 Roll the Dice",value:"go",cls:"gold"}]);
       const ar=d6(), br=d6();
       const aTotal=ar+fa.bonus-fb.intim, bTotal=br+fb.bonus-fa.intim;
-      await diceFlourish(); $("dice").textContent=ar+" ⚔️ "+br;
+      await diceFlourish([ar,br],[a.color,b.color]); $("dice").textContent=ar+" ⚔️ "+br;
       setEvent(fightCardHtml(a,b,String(aTotal),String(bTotal),"VS ⚡"));
       log("&nbsp;&nbsp;Round "+round+": "+a.name+" "+aTotal+"  vs  "+b.name+" "+bTotal);
       await delay(500);
@@ -1540,7 +1580,7 @@
     if(p.type==="human") await ask("🎲 Roll to face the wild "+t.name+"!",[{label:"🎲 Roll the Dice",value:"go",cls:"gold"}]);
     const pr=d6(), wr=d6();
     const pTotal=pr+bonus, wTotal=wr+wb-intim;
-    await diceFlourish(); $("dice").textContent=pr+" ⚔️ "+wr;
+    await diceFlourish([pr,wr],[p.color,"#b9ae96"]); $("dice").textContent=pr+" ⚔️ "+wr;
     setEvent(fightCardHtml(p,wild,String(pTotal),String(wTotal),"VS"));
     log("&nbsp;&nbsp;"+p.name+" "+pTotal+"  vs  wild "+t.name+" "+wTotal);
     await delay(500);

@@ -67,7 +67,6 @@ const AMB = {
 };
 const TYPE_COL  = { start:0xe8b93e, finish:0xe8b93e, adversity:0xd2553f, fight:0xd77f2e, bonus:0x39a3c8, empty:0x9a9489 };
 const RUNE_COL  = { start:0xffd24a, finish:0xffd24a, adversity:0xff4a36, fight:0xff9a22, bonus:0x3fe6ff, empty:0xcfc6ae };
-const EYE       = { apex:3.0, raptor:1.85, horned:2.1, armored:1.35, giant:4.8, grazer:2.8, flyer:2.9, marine:2.4 };
 const PREDATORS = ["Tyrannosaurus rex","Allosaurus","Giganotosaurus","Carcharodontosaurus"];
 
 /* ------------------------------------------------------ canvas textures */
@@ -692,6 +691,67 @@ function create(container, cfg){
     setTimeout(()=>el.remove(),(o.dur||1.4)*1000+80);
   }
 
+
+  /* ---- dice: inked toon dice tossed onto the trail, tumbling to land on the rolled face ---- */
+  const FACE_N=[[0,1,0],[1,0,0],[0,0,1],[0,0,-1],[-1,0,0],[0,-1,0]];     // value 1..6 → face normal (opposite faces sum to 7)
+  const PIPS={1:[[0,0]],2:[[-1,-1],[1,1]],3:[[-1,-1],[0,0],[1,1]],4:[[-1,-1],[1,-1],[-1,1],[1,1]],5:[[-1,-1],[1,-1],[0,0],[-1,1],[1,1]],6:[[-1,-1],[-1,0],[-1,1],[1,-1],[1,0],[1,1]]};
+  const diceMat=INK.toon({vertexColors:true,rim:0.8}), dieGeos={};
+  function dieGeo(hex){
+    if(dieGeos[hex]) return dieGeos[hex];
+    const body=new T.Color(hex), lum=body.r*0.3+body.g*0.59+body.b*0.11, pip=lum>0.55?new T.Color(0x15121a):new T.Color(0xfff6c9);
+    const g=K.weld(new T.BoxGeometry(1,1,1,5,5,5)), P=g.attributes.position, rr=0.16, inner=0.5-rr, v=new T.Vector3(), c=new T.Vector3();
+    for(let i=0;i<P.count;i++){ v.set(P.getX(i),P.getY(i),P.getZ(i)); c.set(clamp(v.x,-inner,inner),clamp(v.y,-inner,inner),clamp(v.z,-inner,inner));
+      v.sub(c); if(v.lengthSq()>1e-9) v.normalize().multiplyScalar(rr); P.setXYZ(i,c.x+v.x,c.y+v.y,c.z+v.z); }
+    g.computeVertexNormals();
+    const parts=[prep(g,body)], Z=new T.Vector3(0,0,1);
+    for(let val=1;val<=6;val++){ const n=new T.Vector3(...FACE_N[val-1]), a=Math.abs(n.y)>0.5?new T.Vector3(1,0,0):new T.Vector3(0,1,0), b=new T.Vector3().crossVectors(n,a);
+      const q=new T.Quaternion().setFromUnitVectors(Z,n);
+      PIPS[val].forEach(([u,w])=>{ const pos=n.clone().multiplyScalar(0.49).addScaledVector(a,u*0.26).addScaledVector(b,w*0.26);
+        parts.push(prep(K.SPHERE_LO,pip,new T.Matrix4().compose(pos,q,new T.Vector3(0.085,0.085,0.03)))); }); }
+    return (dieGeos[hex]=merge(parts));
+  }
+  const diceList=[]; let diceWait=null;
+  function clearDice(){ diceList.forEach(d=>scene.remove(d.mesh)); diceList.length=0; if(diceWait){ const r=diceWait.resolve; diceWait=null; r(); } }
+  function rollDice(vals,cols){
+    return new Promise(resolve=>{
+      clearDice();
+      const S=frameSize(activeEntry()), sc=0.7+S*0.13, t=targetT, base=pathPoint(t), f=pathTangent(t), r=pathRight(t);
+      vals.forEach((val,k)=>{
+        const hex=new T.Color(resolveColor((cols&&cols[k])||"#fff6c9")).getHex();
+        const mesh=new T.Mesh(dieGeo(hex),diceMat); mesh.scale.setScalar(sc); mesh.castShadow=true; mesh.visible=false; scene.add(mesh);
+        const lateral=vals.length===1?1.0:(k===0?0.55:1.75);
+        const land=base.clone().addScaledVector(f,2.3+S*0.7-(vals.length>1&&k===1?0.6:0)).addScaledVector(r,lateral*(1+S*0.3));
+        land.y=groundH(land.x,land.z)+sc*0.5;
+        const from=land.clone().addScaledVector(f,-(2.6+S*0.9)).addScaledVector(r,1.2+S*0.2); from.y+=2.4+S*0.7;
+        const dir=land.clone().sub(from).setY(0).normalize();
+        const axis=new T.Vector3().crossVectors(up,dir).add(new T.Vector3((Math.random()-0.5)*0.5,(Math.random()-0.5)*0.5,(Math.random()-0.5)*0.5)).normalize();
+        const qf=new T.Quaternion().setFromUnitVectors(new T.Vector3(...FACE_N[val-1]),up).premultiply(new T.Quaternion().setFromAxisAngle(up,(Math.random()-0.5)*1.2+Math.atan2(f.x,f.z)));
+        diceList.push({mesh,val,hex,from,land,axis,qf,t:-k*0.1,dur:1.05,spin:PI*2*(2+k)+Math.random()*PI,bounced:false,landed:false,life:3.2,sc});
+      });
+      diceWait={resolve};
+      setTimeout(()=>{ if(diceWait && diceWait.resolve===resolve){ diceWait=null; resolve(); } },1900);   // never stall the game
+    });
+  }
+  const _dq=new T.Quaternion();
+  function updateDice(dt){
+    for(let i=diceList.length-1;i>=0;i--){ const d=diceList[i]; d.t+=dt; if(d.t<0) continue; d.mesh.visible=true;
+      const u=clamp(d.t/d.dur,0,1), amp=0.45+d.sc*0.6;
+      d.mesh.position.lerpVectors(d.from,d.land,easeOut(Math.min(1,u*1.12)));
+      let y=d.land.y;
+      if(u<0.5){ const q=u/0.5; y=lerp(d.from.y,d.land.y,q*q); }
+      else if(u<0.76) y+=amp*Math.sin(PI*(u-0.5)/0.26);
+      else if(u<0.92) y+=amp*0.3*Math.sin(PI*(u-0.76)/0.16);
+      d.mesh.position.y=y;
+      _dq.setFromAxisAngle(d.axis,d.spin*(1-easeOut(u))); d.mesh.quaternion.copy(_dq).multiply(d.qf);
+      if(!d.bounced && u>=0.5){ d.bounced=true; shake=Math.max(shake,0.08);
+        for(let j=0;j<3;j++) puff({pos:d.land.clone().setY(d.land.y-d.sc*0.4),vel:new T.Vector3((Math.random()-0.5)*2,0.8,(Math.random()-0.5)*2),life:0.7,s0:0.15*d.sc,s1:0.5*d.sc,color:0xe8dcc0}); }
+      if(!d.landed && u>=1){ d.landed=true;
+        comic(String(d.val),{at:d.land.clone().setY(d.land.y+d.sc*1.4),size:0.7,burst:true,bg:"#"+new T.Color(d.hex).getHexString(),color:"#fff6c9",dur:1.1,rot:Math.random()*16-8}); }
+      if(d.t>d.life){ const q=clamp((d.t-d.life)/0.3,0,1); d.mesh.scale.setScalar(d.sc*(1-q)+0.001); if(q>=1){ scene.remove(d.mesh); diceList.splice(i,1); } }
+    }
+    if(diceWait && diceList.length && diceList.every(d=>d.landed)){ const r=diceWait.resolve; diceWait=null; setTimeout(r,250); }
+  }
+
   /* ---- player models & transient actors ---- */
   const models={};          // idx -> entry
   const actors=[];          // wild dinos etc.
@@ -703,7 +763,7 @@ function create(container, cfg){
     const root=new T.Group(); root.rotation.order="YXZ"; root.add(b.group);
     const holder=new T.Group(); holder.add(root);
     if(b.marine){ const pond=new T.Mesh(depthDisc(Math.max(2.2,b.length*0.38),48),pondMat); pond.position.y=0.3; holder.add(pond); }
-    return { holder, root, rig:b.rig, height:b.height, scale:1, mats:b.mats, arch, species:b.species, flyer:b.flyer,
+    return { holder, root, rig:b.rig, height:b.height, length:b.length, scale:1, mats:b.mats, arch, species:b.species, flyer:b.flyer,
       phase:Math.random()*10, anim:{mode:"idle",t:0}, yaw:0, moving:0, opacity:1, poseAcc:1,
       base:new T.Vector3(), target:new T.Vector3(), face:new T.Vector3(), side:1 };
   }
@@ -723,8 +783,8 @@ function create(container, cfg){
     opts=opts||{};
     const e=makeDino(arch,hex,opts.species,opts.wild!==false); scene.add(e.holder); actors.push(e);
     const t=S?activePos():0, big=Math.max(1,(e.height||2)/2.6);
-    pathPoint(t+(opts.ahead||0.6)*big+(e.flyer?0.2:0),e.base); e.target.copy(e.base);
-    e.face.copy(camGround()); e.yaw=Math.atan2(e.face.x-e.base.x,e.face.z-e.base.z);
+    pathPoint(t+(opts.ahead||0.6)*big+0.3*activeBig()+(e.flyer?0.2:0),e.base); e.target.copy(e.base);
+    e.face.copy(pathPoint(t)); e.yaw=Math.atan2(e.face.x-e.base.x,e.face.z-e.base.z);
     e.side=Math.random()<0.5?-1:1; e.tag=opts.tag;
     setAnim(e,"enter"); e.holder.position.copy(e.base);
     return e;
@@ -735,17 +795,22 @@ function create(container, cfg){
 
   function activeP(){ return S && S.players.find(p=>p.idx===S.active); }
   function activePos(){ const a=activeP(); return a?a.pos:0; }
+  function activeEntry(){ const a=activeP(); return a?models[a.idx]:null; }
+  function frameSize(e){ return e?Math.max(1.6,e.height*0.9,(e.length||0)*0.38):2.5; }
+  function activeBig(){ const e=activeEntry(); return e?Math.max(1,e.height/2.5):1; }
 
   function layout(snap){
     const act=activeP(); const groups={};
     S.players.forEach(p=>{ if(!act || p.idx!==act.idx) (groups[p.pos]=groups[p.pos]||[]).push(p); });
+    if(act && models[act.idx]){ const e=models[act.idx]; pathPoint(act.pos,e.target); pathPoint(act.pos+1.2,e.face);
+      if(snap){ e.base.copy(e.target); e.yaw=Math.atan2(e.face.x-e.base.x,e.face.z-e.base.z); } }
     Object.keys(groups).forEach(k=>{
       const arr=groups[k], pos=+k, n=arr.length, withCam=act && pos===act.pos;
       arr.forEach((p,j)=>{
-        // rivals sharing the camera's space stand well ahead and off-centre so they never fill the view
+        // rivals sharing your space stand ahead of your dino and off to the side, facing you
         const e=models[p.idx], big=Math.max(1,(e.height||2)/2.5);
-        const off=withCam?((j-(n-1)/2)*3+(n===1?1.8:0))*big:(j-(n-1)/2)*2.5;
-        const t=withCam?pos+0.55*big+0.15:pos;
+        const off=withCam?((j-(n-1)/2)*3-(n===1?1.8:0))*big:(j-(n-1)/2)*2.5;
+        const t=withCam?pos+0.5*big+0.35*activeBig()+0.15:pos;
         pathPoint(t,e.target).addScaledVector(pathRight(t),n>1||withCam?off:0);
         if(withCam) e.face.copy(pathPoint(pos-0.3)); else pathPoint(pos+1.2,e.face).addScaledVector(pathRight(pos),off);
         if(snap){ e.base.copy(e.target); e.yaw=Math.atan2(e.face.x-e.base.x,e.face.z-e.base.z); }
@@ -754,7 +819,8 @@ function create(container, cfg){
   }
 
   /* ---- camera state ---- */
-  let camT=0, targetT=0, eyeS=2.5, eyeT=2.5, liftS=0, glide=0;
+  let camT=0, targetT=0, sizeS=2.5, sizeT=2.5, lenS=5, lenT=5, liftS=0, glide=0, attached=false;
+  let encounter=false, encounterEnd=0, markerFade=1;
   let lookYaw=0, lookPitch=0, yawS=0, pitchS=0, lastDrag=-99, time=0;
 
   function sync(state,snap){
@@ -774,7 +840,7 @@ function create(container, cfg){
         else { e.label=new T.Sprite(new T.SpriteMaterial({map:labelTexture(p,hex),depthTest:false,transparent:true,fog:false})); e.label.renderOrder=10; e.label.scale.set(2.0,0.7,1); INK.layer(e.label,3); e.holder.add(e.label); }
         e.label.position.set(0,e.height+0.8,0);
       }
-      const hide=(act && p.idx===act.idx) || (p.extinct && e.anim.mode!=="fall");
+      const hide=p.extinct && e.anim.mode!=="fall";
       if(!hide && !e.holder.visible){ e.holder.visible=true; setOpacity(e,1); e.root.rotation.z=0; shown.push(e); }
       if(hide && e.anim.mode!=="fall") e.holder.visible=false;
     });
@@ -783,9 +849,9 @@ function create(container, cfg){
     layout(snap||fresh);
     Object.values(models).forEach(e=>{ if(e.fresh || shown.indexOf(e)>=0){ e.base.copy(e.target); e.yaw=Math.atan2(e.face.x-e.base.x,e.face.z-e.base.z); e.fresh=false; } });
     if(act){
-      targetT=act.pos; eyeT=EYE[act.arch]||2.5;
-      if(snap){ camT=targetT; eyeS=eyeT; liftS=0; }
-      if(lastActive!==act.idx){ lastActive=act.idx; lookYaw=lookPitch=0; dismissActors(); }
+      targetT=act.pos; sizeT=frameSize(models[act.idx]); lenT=Math.min(22,(models[act.idx]&&models[act.idx].length)||5);
+      if(snap){ camT=targetT; sizeS=sizeT; lenS=lenT; liftS=0; attached=true; }
+      if(lastActive!==act.idx){ lastActive=act.idx; lookYaw=lookPitch=0; dismissActors(); encounter=false; encounterEnd=0; if(!snap) attached=false; }
     }
   }
 
@@ -813,7 +879,7 @@ function create(container, cfg){
       burst({pos:at.clone().add(new T.Vector3(0,14,-6)),n:220,color:0x9fd8ff,speed:0.4,gravity:-26,spread:28,spreadY:4,size:0.18,life:1.4}); },
     "Tar Pit":          (at)=>{ setTint(0x221a16,0.35); comic("GLOOP!",{color:"#c8b8a8",bg:"#2a2220",burst:true});
       if(tar){ scene.remove(tar.mesh); tar.mesh.geometry.dispose(); tar.mesh.material.dispose(); }
-      tar={t:0,next:0,mesh:(()=>{ const m=new T.Mesh(new T.CircleGeometry(1,32),INK.toon({color:0x17110e,rim:2})); m.rotation.x=-PI/2; m.position.copy(at).setY(0.45); scene.add(m); return m; })()}; sinkTarget=-0.45; },
+      tar={t:0,next:0,mesh:(()=>{ const m=new T.Mesh(new T.CircleGeometry(1,32),INK.toon({color:0x17110e,rim:2})); m.rotation.x=-PI/2; m.position.copy(at).setY(0.45); scene.add(m); return m; })()}; sinkTarget=-Math.min(1.2,0.25*sizeS); },
     "Sandstorm":        (at)=>{ setTint(0xe0b872,0.6,0.75); comic("WHOOOSH!",{color:"#fff0c8",bg:"#c08a3a",burst:true});
       for(let k=0;k<22;k++) after(k*0.07,()=>puff({pos:at.clone().add(new T.Vector3(-16+Math.random()*4,0.5+Math.random()*4,-4-Math.random()*12)),vel:new T.Vector3(16+Math.random()*6,0.5,Math.random()*2),life:2.2,s0:1,s1:2.6,color:0xe8c88a,color1:0xc89a5a,drag:0.2}));
       burst({pos:at.clone().add(new T.Vector3(-18,2,-6)),n:300,color:0xe7c78b,speed:1,vx:14,gravity:0,spread:30,spreadY:5,size:0.3,life:2.5,drag:0}); },
@@ -825,10 +891,14 @@ function create(container, cfg){
 
   function fx(name,d){
     d=d||{};
-    const at=pathPoint(activePos());
+    const at=pathPoint(activePos()), me=activeEntry();
+    // space markers step aside while an encounter plays out
+    if(name==="hazard"||name==="wild"||name==="clash"||name==="tiebreak") encounter=true;
+    if(/Result$/.test(name)){ encounter=false; encounterEnd=time+2.4; }
     switch(name){
       case "hazard":{ lookYaw=lookPitch=0; (HAZ[d.name]||((a)=>setTint(0xff6a3d,0.35)))(at); break; }
       case "hazardResult":{
+        if(me && (d.dodged || !d.ok)) setAnim(me,"hop");
         if(d.dodged){ flash("rgba(160,230,255,.9)",0.3,700); burst({pos:at.clone().setY(2),n:60,colors:[0xbff0ff,0xffffff],speed:5,size:0.4,life:1,add:true,spark:true}); comic("DODGED!",{color:"#aef3ff",bg:"#1e8fe0",burst:true,y:0.36}); }
         else if(d.ok){ flash("rgba(120,255,150,.9)",0.2,700); comic("PHEW!",{color:"#b8ffb0",bg:"#2a9a4a",y:0.36}); }
         else if(d.kind==="wash"){ flash("rgba(90,170,255,.9)",0.35,800); shake=Math.max(shake,0.3); comic("WASHED BACK!",{color:"#dff4ff",bg:"#1e6fd0",burst:true,size:0.8,y:0.36}); }
@@ -838,34 +908,34 @@ function create(container, cfg){
         after(1.2,()=>{ tint.amt*=0.5; });
         break; }
       case "wild":{ lookYaw=lookPitch=0; const e=spawnActor(d.arch||"apex",0x7a5c3a,{tag:"wild",species:d.name}); shake=Math.max(shake,0.15);
-        after(0.75,()=>comic("ROAR!",{burst:true,at:headPos(e),bg:"#ff7a1a"})); break; }
+        after(0.75,()=>comic("ROAR!",{burst:true,at:headPos(e),bg:"#ff7a1a"})); after(1.1,()=>{ if(me && me.anim.mode==="idle") setAnim(me,"roar"); }); break; }
       case "wildResult":{
         const w=findActor("wild");
-        if(d.win){ if(w){ setAnim(w,"hop"); after(0.6,()=>setAnim(w,"exit")); }
+        if(d.win){ if(me) setAnim(me,"lunge"); if(w){ after(0.2,()=>setAnim(w,"hop")); after(0.8,()=>setAnim(w,"exit")); }
           flash("rgba(120,255,150,.9)",0.2,700); hit(0.35);
           comic(d.aggressive?"CHOMP!":"POW!",{burst:true,bg:d.aggressive?"#ff3d6e":"#ffb800",color:d.aggressive?"#ffe14a":"#ffffff",at:w?headPos(w):null,size:1.1});
           if(d.aggressive) burst({pos:at.clone().setY(1.5),n:70,colors:[0xff6b8a,0xffd1dc,0xffffff],speed:3,gravity:1,size:0.4,life:1.4,add:true,spark:true}); }
         else { if(w){ setAnim(w,"lunge"); after(0.7,()=>setAnim(w,"exit")); }
-          after(0.22,()=>{ flash("rgba(255,40,40,.95)",0.4,700); shake=Math.max(shake,0.55); hit(0.9); comic("CRUNCH!",{burst:true,bg:"#e8264f",color:"#ffffff",size:1.15}); }); }
+          after(0.22,()=>{ if(me) setAnim(me,"hop"); flash("rgba(255,40,40,.95)",0.4,700); shake=Math.max(shake,0.55); hit(0.9); comic("CRUNCH!",{burst:true,bg:"#e8264f",color:"#ffffff",size:1.15}); }); }
         break; }
-      case "clash":{ lookYaw=lookPitch=0; const e=models[d.defender]; if(e) setAnim(e,"roar"); shake=Math.max(shake,0.2); if(!reduceMotion) roll=0.12;
+      case "clash":{ lookYaw=lookPitch=0; const e=models[d.defender]; if(e) setAnim(e,"roar"); if(me && me!==e) after(0.5,()=>setAnim(me,"roar")); shake=Math.max(shake,0.2); if(!reduceMotion) roll=0.12;
         comic("VS!",{burst:true,bg:"#8a3aff",color:"#ffe14a",size:1.35,rot:-10}); break; }
       case "clashResult":{
         const act=activeP(); if(d.loser==null){ shake=Math.max(shake,0.15); break; }
         if(act && d.loser===act.idx){ const w=models[d.other]; if(w) setAnim(w,"lunge");
-          after(0.25,()=>{ flash("rgba(255,40,40,.95)",0.45,700); shake=Math.max(shake,0.5); hit(1); comic("BAM!",{burst:true,bg:"#e8264f",color:"#ffffff",size:1.3}); }); }
-        else { const e=models[d.loser]; if(e) setAnim(e,"hop"); flash("rgba(255,220,120,.9)",0.2,500); shake=Math.max(shake,0.25); hit(0.45);
+          after(0.25,()=>{ if(me) setAnim(me,"hop"); flash("rgba(255,40,40,.95)",0.45,700); shake=Math.max(shake,0.5); hit(1); comic("BAM!",{burst:true,bg:"#e8264f",color:"#ffffff",size:1.3}); }); }
+        else { const e=models[d.loser]; if(e) after(0.2,()=>setAnim(e,"hop")); if(me && me!==e) setAnim(me,"lunge"); flash("rgba(255,220,120,.9)",0.2,500); shake=Math.max(shake,0.25); hit(0.45);
           comic("POW!",{burst:true,bg:"#ffb800",color:"#ffffff",at:e?headPos(e):null,size:1.2}); }
         break; }
       case "oasis":{ flash("rgba(120,230,255,.9)",0.25,900); comic("AHHH~",{color:"#dffcff",bg:"#18b8d8",burst:true,size:0.95});
         burst({pos:at.clone().setY(0.6),n:110,colors:[0x7fe7ff,0xffffff,0xbaffd8],speed:2.2,gravity:2.5,up:1,spread:3,size:0.45,life:2,add:true,spark:true}); break; }
       case "extinct":{ const act=activeP();
-        if(act && d.idx===act.idx){ flash("rgba(40,20,20,.95)",0.75,1400); sinkTarget=-(eyeT-0.5); shake=Math.max(shake,0.4); after(1.1,()=>{ sinkTarget=0; });
-          comic("NOOOO!",{color:"#ffffff",bg:"#3a2a4a",burst:true,size:1.2}); }
-        else { const e=models[d.idx]; if(e){ e.holder.visible=true; setAnim(e,"fall"); comic("EXTINCT!",{color:"#ffffff",bg:"#5a4a6a",at:headPos(e),size:0.8}); } }
+        const e=models[d.idx]; if(e){ e.holder.visible=true; setAnim(e,"fall"); }
+        if(act && d.idx===act.idx){ flash("rgba(40,20,20,.95)",0.6,1400); shake=Math.max(shake,0.4); comic("NOOOO!",{color:"#ffffff",bg:"#3a2a4a",burst:true,size:1.2}); }
+        else if(e) comic("EXTINCT!",{color:"#ffffff",bg:"#5a4a6a",at:headPos(e),size:0.8});
         break; }
       case "respawn":{ after(0.4,()=>{ const p=S.players.find(q=>q.idx===d.idx); if(!p) return;
-          const mine=activeP() && d.idx===activeP().idx, where=mine?pathPoint(p.pos+0.8):pathPoint(p.pos);
+          const mine=activeP() && d.idx===activeP().idx, where=pathPoint(p.pos);
           burst({pos:where.clone().setY(1),n:90,colors:[0xfff3dc,0xffffff,0xe8d9b5],speed:5,size:0.45,life:1.6,spark:true});
           for(let k=0;k<8;k++) puff({pos:where.clone().setY(0.6),vel:new T.Vector3((Math.random()-0.5)*5,3+Math.random()*3,(Math.random()-0.5)*5),life:1.2,s0:0.25,s1:0.6,color:0xfff3dc,rise:-8});
           comic("HATCH!",{color:"#fff6c9",bg:"#ff9a3a",burst:true,at:where.clone().setY(1.5)});
@@ -892,27 +962,32 @@ function create(container, cfg){
   const v1=new T.Vector3(), v2=new T.Vector3(), v3=new T.Vector3(), up=new T.Vector3(0,1,0);
   const cHor=new T.Color(), cTop=new T.Color(), cSun=new T.Color();
 
+  /* over-the-shoulder rig: behind and above your dino's right shoulder, framed by its size;
+     dragging orbits around the dino. Long moves (turn changes, respawns) lift into a glide. */
+  const _f=new T.Vector3(), _r=new T.Vector3(), _anc=new T.Vector3(), _look=new T.Vector3();
   function updateCamera(dt){
-    const prev=camT;
-    camT+=(targetT-camT)*(1-Math.exp(-dt*2.6));
+    const prev=camT, gap=targetT-camT;
+    const maxStep=dt*Math.max(3.4,Math.abs(gap)*1.3);          // walk pace for normal moves, faster for long jumps
+    camT+=clamp(gap*(1-Math.exp(-dt*3)),-maxStep,maxStep);
     if(Math.abs(targetT-camT)<0.002) camT=targetT;
+    if(!attached && Math.abs(targetT-camT)<0.05) attached=true;
     const speed=Math.abs(camT-prev)/Math.max(dt,1e-4), dist=Math.abs(targetT-camT);
-    glide=lerp(glide,clamp((speed-0.8)/3,0,1),1-Math.exp(-dt*6));
-    liftS=lerp(liftS,clamp((dist-1.5)*1.6,0,20),1-Math.exp(-dt*3));
-    eyeS=lerp(eyeS,eyeT,1-Math.exp(-dt*3));
+    glide=lerp(glide,clamp((speed-2)/4,0,1),1-Math.exp(-dt*6));
+    liftS=lerp(liftS,clamp((dist-2.5)*1.2,0,14),1-Math.exp(-dt*3));
+    sizeS=lerp(sizeS,sizeT,1-Math.exp(-dt*3)); lenS=lerp(lenS,lenT,1-Math.exp(-dt*3));
     sink=lerp(sink,sinkTarget,1-Math.exp(-dt*4));
     if(time-lastDrag>2.5){ lookYaw*=Math.exp(-dt*1.6); lookPitch*=Math.exp(-dt*1.6); }
     yawS=lerp(yawS,lookYaw,1-Math.exp(-dt*10)); pitchS=lerp(pitchS,lookPitch,1-Math.exp(-dt*10));
-    const p=pathPoint(camT-0.18,v1);   // stand at the back edge of the stone so it doesn't fill the view
-    const bob=Math.sin(time*9.5)*0.07*clamp(speed*0.9,0,1);
-    camera.position.set(p.x,eyeS+liftS+bob+sink,p.z);
-    const f=v2.subVectors(pathPoint(camT+1.4,v3),p).setY(0).normalize();
-    const c=Math.cos(yawS), s=Math.sin(yawS);
-    const fx_=f.x*c+f.z*s, fz_=-f.x*s+f.z*c;
-    const pitch=pitchS-0.02-eyeS*0.025-liftS*0.035;
-    camera.lookAt(camera.position.x+fx_*10, camera.position.y+Math.tan(pitch)*10, camera.position.z+fz_*10);
+    const S=sizeS;
+    pathPoint(camT,_anc); _anc.y=0;
+    pathTangent(camT+0.3,_f); _f.applyAxisAngle(up,yawS); _r.set(-_f.z,0,_f.x);
+    const narrow=camera.aspect<0.9?1.3:1;   // portrait phones have a narrow view, so stand further back
+    const back=(3+S*1.3+lenS*0.5)*narrow+liftS*0.7, high=2.0+S*1.05+liftS*0.55-pitchS*S*1.2, side=1.0+S*0.55;
+    camera.position.copy(_anc).addScaledVector(_f,-back).addScaledVector(_r,side); camera.position.y+=high;
+    _look.copy(_anc).addScaledVector(_f,5+S*1.2).addScaledVector(_r,side*0.3); _look.y+=S*0.12+pitchS*8;
+    camera.lookAt(_look);
     fovKick*=Math.exp(-dt*5); roll*=Math.exp(-dt*2.2);
-    const fov=68+fovKick+glide*6;
+    const fov=60+fovKick+glide*6;
     if(Math.abs(camera.fov-fov)>0.01){ camera.fov=fov; camera.updateProjectionMatrix(); }
     camera.rotation.z+=roll;
     if(shake>0.001 && !reduceMotion){ camera.position.x+=(Math.random()-0.5)*shake*0.5; camera.position.y+=(Math.random()-0.5)*shake*0.5; camera.rotation.z+=(Math.random()-0.5)*shake*0.06; }
@@ -948,6 +1023,7 @@ function create(container, cfg){
     if(e.poseAcc>=1/12){ e.poseAcc=0; A.jaw=jaw; A.up=upA; A.lunge=lunge; DN.pose(e.rig,time+e.phase,e.moving,A); }
     e.root.scale.set(pulse,pulse,pulse);
     e.holder.position.copy(e.base).add(off);
+    if(e===activeEntry()) e.holder.position.y+=sink;
     e.root.rotation.set(0,e.yaw+extraYaw,tip);
   }
 
@@ -967,7 +1043,11 @@ function create(container, cfg){
     sun.position.set(g.x+fw.x*18+skyU.sunDir.value.x*70, skyU.sunDir.value.y*70, g.z+fw.z*18+skyU.sunDir.value.z*70);
     sun.target.position.set(g.x+fw.x*18,0,g.z+fw.z*18); sun.target.updateMatrixWorld();
     sky.position.copy(camera.position);
-    icons.forEach(ic=>{ ic.spr.position.y=3.4+Math.sin(time*1.6+ic.i)*0.12; const d=Math.abs(ic.i-camT); ic.spr.visible=d>0.35; ic.spr.material.opacity=clamp((d-0.35)/0.5,0,1); });
+    const hideMarkers=encounter || time<encounterEnd || actors.some(a=>!a.dead);
+    markerFade=lerp(markerFade,hideMarkers?0:1,1-Math.exp(-dt*(hideMarkers?8:3)));
+    icons.forEach(ic=>{ ic.spr.position.y=3.4+Math.sin(time*1.6+ic.i)*0.12;
+      const op=clamp((ic.i-camT-0.6)/0.5,0,1)*markerFade;     // only spaces ahead of your dino
+      ic.spr.visible=op>0.01; ic.spr.material.opacity=op; });
     runes.forEach(r=>{ const pulse=r.type==="bonus"||r.type==="finish"?0.75+0.35*Math.sin(time*2.4+r.i):0.9; r.m.color.copy(r.base).multiplyScalar(pulse); });
     // ambient particles
     const kind=(BIOME[habAt(camT)]||{}).amb||null;
@@ -1022,7 +1102,7 @@ function create(container, cfg){
       if(t>3.2){ tar.mesh.scale.setScalar(4.5*(1-clamp((t-3.2)/0.6,0,1))+0.001); }
       if(t>3.8){ scene.remove(tar.mesh); tar.mesh.geometry.dispose(); tar.mesh.material.dispose(); tar=null; } }
     for(let i=actors.length-1;i>=0;i--){ const a=actors[i]; animate(a,dt); if(a.dead){ disposeEntry(a); actors.splice(i,1); } }
-    updatePuffs(dt);
+    updatePuffs(dt); updateDice(dt);
   }
 
   /* ---- loop (with adaptive resolution so slower devices stay smooth) ---- */
@@ -1034,13 +1114,15 @@ function create(container, cfg){
     if(!container.getClientRects().length) return;   // hidden (e.g. 2D view or another screen) — skip rendering
     try{
       updateCamera(dt);
-      const cp=camera.position;
+      const cp=camera.position, act=activeEntry();
       Object.values(models).forEach(e=>{
         if(!e.holder.visible) return;
+        const mine=e===act;
+        if(mine && attached){ pathPoint(camT,e.target); pathPoint(camT+1.2,e.face); }
         animate(e,dt);
         const d=Math.hypot(e.holder.position.x-cp.x,e.holder.position.z-cp.z);
-        e.root.visible=d>2.6+e.height*0.3 || e.anim.mode==="fall";
-        if(e.label) e.label.visible=d>5;
+        e.root.visible=mine || d>1.6+e.height*0.25 || e.anim.mode==="fall";
+        if(e.label) e.label.visible=!mine && d>5;
       });
       updateFx(dt); updateEnv(dt);
       pipe.render();
@@ -1065,11 +1147,11 @@ function create(container, cfg){
 
   window.__efw={ groundColor, groundH, groundN, tbl, scene, camera, renderer, pipe, models, PROPS };   // debugging handle (harmless)
   return {
-    sync, fx,
+    sync, fx, rollDice,
     setActive(on){ if(on && !running){ running=true; last=performance.now(); resize(); raf=requestAnimationFrame(frame); } else if(!on){ running=false; cancelAnimationFrame(raf); } },
     resize,
     reset(){ actors.forEach(disposeEntry); actors.length=0; bursts.forEach(b=>scene.remove(b.pts)); bursts.length=0; puffList.length=0;
-      lastActive=null; tint.amt=0; sinkTarget=0; frost=0; haze=0; impact=0; comicsEl.innerHTML=""; },
+      lastActive=null; tint.amt=0; sinkTarget=0; frost=0; haze=0; impact=0; comicsEl.innerHTML=""; encounter=false; encounterEnd=0; clearDice(); },
   };
 }
 

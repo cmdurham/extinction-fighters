@@ -18,7 +18,7 @@ const state={active:0,players:[
   {idx:1,name:"Dino 2",color:"#4f8cff",arch:"horned",species:"Triceratops",pos:+(params.get("pos")||0)+1,hp:3,maxHp:4},
   {idx:2,name:"Dino 3",color:"#5ac85a",arch:"raptor",species:"Velociraptor",pos:+(params.get("pos")||0)+2,hp:3,maxHp:3},
   {idx:3,name:"Dino 4",color:"#ff6fb1",arch:"giant",species:"Brachiosaurus",pos:+(params.get("pos")||0)+3,hp:4,maxHp:4}]};
-world.setActive(true); world.sync(state,true);
+world.setActive(true); world.sync(state,true); window.W=world;
 window.go=(n,snap)=>{ state.players[0].pos=n; world.sync(state,snap!==false); };
 window.fx=(n,d)=>world.fx(n,d||{});
 window.species=(i,name,arch)=>{ state.players[i].species=name; if(arch) state.players[i].arch=arch; world.sync(state,true); };

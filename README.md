@@ -12,7 +12,7 @@ Hatch one of 50 real dinosaur, pterosaur, and marine reptile species from a myst
 - Draft-3-of-4 power system with a one-power-per-turn limit
 - Habitat-themed board with hazard, battle, and oasis spaces
 - 2–4 players, any mix of human or CPU
-- **3D first-person mode** (default): walk the trail through each habitat at your dino's own eye height — switch to the classic 2D board any time with the 🗺️/🎥 button. Styled like an animated film:
+- **3D mode** (default): an over-the-shoulder camera follows your dino along the trail through each habitat, with tumbling 3D dice and a comic title card announcing each turn — switch to the classic 2D board any time with the 🗺️/🎥 button. Styled like an animated film:
   - cel-shaded, ink-outlined world with Spider-Verse print touches (halftone shadows, colour misregistration, hand-drawn grain, animation "on twos") and anime impact frames, speed lines and comic-book sound effects
   - all 50 species sculpted procedurally with skeletons, walk cycles and species details (sails, frills, plates, feathers, wings, flippers), wearing each player's colour
   - painterly terrain, cel-shaded skies and layered background ridges for eight habitats, plus a volcano, ocean and the bone-arch nest at the finish
